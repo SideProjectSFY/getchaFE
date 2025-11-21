@@ -7,6 +7,8 @@ export const mockUsers = [
     nickname: '덕후마스터',
     name: '홍길동',
     email: 'test@example.com',
+    accountBank: '카카오뱅크',
+    accountNumber: '333333-01-123456',
     profileImage: 'https://images.unsplash.com/photo-1607604274033-5332875d6501?w=200&h=200&fit=crop&q=80',
     favoriteAnimes: [
       { id: 1, title: { romaji: '주술회전' }, coverImage: { large: 'https://images.unsplash.com/photo-1607604274033-5332875d6501?w=200&h=200&fit=crop&q=80' } }
@@ -42,6 +44,8 @@ export const mockUsers = [
     nickname: '애니러버',
     name: '김철수',
     email: 'anime@example.com',
+    accountBank: '신한은행',
+    accountNumber: '110-123-456789',
     profileImage: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=200&h=200&fit=crop&q=80',
     favoriteAnimes: [
       { id: 2, title: { romaji: 'SPY×FAMILY' }, coverImage: { large: 'https://images.unsplash.com/photo-1611532736597-de2d4265fba3?w=200&h=200&fit=crop&q=80' } }
@@ -77,6 +81,8 @@ export const mockUsers = [
     nickname: '굿즈수집가',
     name: '이영희',
     email: 'collector@example.com',
+    accountBank: '국민은행',
+    accountNumber: '123456-78-901234',
     profileImage: 'https://images.unsplash.com/photo-1602810318383-e386cc2a3ccf?w=200&h=200&fit=crop&q=80',
     favoriteAnimes: [
       { id: 3, title: { romaji: '하이큐!!' }, coverImage: { large: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=200&h=200&fit=crop&q=80' } }

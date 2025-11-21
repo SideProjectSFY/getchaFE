@@ -11,8 +11,8 @@
       >
         <div class="transaction-info">
           <div class="transaction-type">
-            <span :class="['type-badge', `type-${transaction.type.toLowerCase()}`]">
-              {{ getTransactionTypeLabel(transaction.type) }}
+            <span :class="['type-badge', getTransactionCategory(transaction).className]">
+              {{ getTransactionCategory(transaction).label }}
             </span>
           </div>
           <div class="transaction-details">
@@ -20,8 +20,8 @@
             <span class="transaction-date">{{ formatDate(transaction.createdAt) }}</span>
           </div>
         </div>
-        <div class="transaction-amount" :class="{ positive: transaction.amount > 0, negative: transaction.amount < 0 }">
-          {{ transaction.amount > 0 ? '+' : '' }}{{ formatPrice(Math.abs(transaction.amount)) }}
+        <div class="transaction-amount" :class="['transaction-amount', getDisplayAmount(transaction).className]">
+          {{ getDisplayAmount(transaction).text }}
         </div>
       </div>
     </div>
@@ -53,18 +53,6 @@ const transactions = ref([])
 const currentPage = ref(1)
 const ITEMS_PER_PAGE = 5
 
-function getTransactionTypeLabel(type) {
-  const typeMap = {
-    BID: '입찰',
-    BID_LOCK: '예치금 Lock',
-    BID_UNLOCK: '예치금 Unlock',
-    WIN: '낙찰',
-    LOSE: '패찰',
-    REFUND: '환불'
-  }
-  return typeMap[type] || type
-}
-
 function loadMockTransactions() {
   const userId = authStore.user?.id
   const fallback = mockTransactions[userId] || mockTransactions.default || []
@@ -94,9 +82,43 @@ const paginatedTransactions = computed(() => {
   return transactions.value.slice(start, start + ITEMS_PER_PAGE)
 })
 
+function getAmountClass(amount) {
+  if (amount > 0) return 'positive'
+  if (amount < 0) return 'negative'
+  return 'neutral'
+}
+
 function changePage(page) {
   if (page < 1 || page > totalPages.value) return
   currentPage.value = page
+}
+
+function getTransactionCategory(transaction) {
+  if (transaction.type === 'DEPOSIT') {
+    return { label: '충전', className: 'type-charge' }
+  }
+  if (transaction.type === 'REFUND') {
+    return { label: '환불', className: 'type-refund' }
+  }
+  if (transaction.amount > 0) {
+    return { label: '입금', className: 'type-deposit' }
+  }
+  if (transaction.amount < 0) {
+    return { label: '출금', className: 'type-withdraw' }
+  }
+  return { label: '입금', className: 'type-deposit' }
+}
+
+function getDisplayAmount(transaction) {
+  if (transaction.type === 'WIN') {
+    return { text: '정산 완료', className: 'neutral' }
+  }
+  const amount = transaction.amount || 0
+  const sign = amount > 0 ? '+' : amount < 0 ? '-' : ''
+  return {
+    text: `${sign}${formatPrice(Math.abs(amount))}`,
+    className: getAmountClass(amount)
+  }
 }
 
 watch(transactions, () => {
@@ -158,22 +180,20 @@ onMounted(() => {
   color: white;
 }
 
-.type-bid,
-.type-bid_lock {
-  background: var(--primary-red);
+.type-charge {
+  background: #ff6b81;
 }
 
-.type-bid_unlock,
+.type-deposit {
+  background: #00b894;
+}
+
+.type-withdraw {
+  background: #e63946;
+}
+
 .type-refund {
-  background: #4CAF50;
-}
-
-.type-win {
-  background: #FF9800;
-}
-
-.type-lose {
-  background: var(--text-gray);
+  background: #6c5ce7;
 }
 
 .transaction-details {
@@ -199,11 +219,15 @@ onMounted(() => {
 }
 
 .transaction-amount.positive {
-  color: #4CAF50;
+  color: #1E9A4C;
 }
 
 .transaction-amount.negative {
-  color: var(--primary-red);
+  color: #E63946;
+}
+
+.transaction-amount.neutral {
+  color: #555;
 }
 
 .loading,

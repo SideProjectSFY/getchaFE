@@ -104,6 +104,35 @@
             />
           </div>
 
+          <div class="form-row account-row">
+            <div class="account-field">
+              <label for="bank">계좌은행 <span class="required">*</span></label>
+              <select
+                id="bank"
+                v-model="form.accountBank"
+                class="form-input select-input"
+                required
+              >
+                <option value="" disabled>은행을 선택하세요</option>
+                <option v-for="bank in bankOptions" :key="bank" :value="bank">
+                  {{ bank }}
+                </option>
+              </select>
+            </div>
+            <div class="account-field">
+              <label for="accountNumber">계좌번호 <span class="required">*</span></label>
+              <input
+                id="accountNumber"
+                v-model="form.accountNumber"
+                type="text"
+                inputmode="numeric"
+                required
+                placeholder="숫자만 입력"
+                class="form-input"
+              />
+            </div>
+          </div>
+
           <div class="form-group">
             <label>관심 카테고리 (선택)</label>
             <div class="category-checkboxes">
@@ -164,7 +193,9 @@ const form = ref({
   email: '',
   verificationCode: '',
   favoriteAnimes: [],
-  favoriteCategories: []
+  favoriteCategories: [],
+  accountBank: '',
+  accountNumber: ''
 })
 
 const loading = ref(false)
@@ -174,6 +205,16 @@ const emailVerified = ref(false)
 const profileImage = ref('')
 
 const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
+const bankOptions = [
+  '국민은행',
+  '신한은행',
+  '우리은행',
+  '하나은행',
+  '농협은행',
+  '기업은행',
+  '카카오뱅크',
+  '토스뱅크'
+]
 
 function handleAnimeSelected(anime) {
   if (!profileImage.value && anime.coverImage?.large) {
@@ -216,11 +257,29 @@ async function handleRegister() {
     return
   }
 
+  if (!form.value.accountBank) {
+    errorMessage.value = '계좌은행을 선택해주세요.'
+    return
+  }
+
+  if (!form.value.accountNumber.trim()) {
+    errorMessage.value = '계좌번호를 입력해주세요.'
+    return
+  }
+
   loading.value = true
   errorMessage.value = ''
 
+  const sanitizedAccountNumber = form.value.accountNumber.replace(/\D/g, '')
+  if (!sanitizedAccountNumber) {
+    errorMessage.value = '계좌번호는 숫자만 입력해주세요.'
+    loading.value = false
+    return
+  }
+
   const registerData = {
     ...form.value,
+    accountNumber: sanitizedAccountNumber,
     profileImage: profileImage.value
   }
 
@@ -377,6 +436,41 @@ watch(() => form.value.verificationCode, checkVerificationCode)
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 12px;
   margin-top: 8px;
+}
+
+.form-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.form-row.account-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.35fr) minmax(220px, 0.65fr);
+  gap: 20px;
+  width: 100%;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .form-row.account-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.select-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 10px;
 }
 
 .checkbox-label {

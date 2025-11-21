@@ -33,8 +33,11 @@
       <div class="detail-content">
         <!-- 이미지 갤러리 -->
         <div class="image-gallery">
-          <div class="main-image">
+          <div class="main-image" :class="{ completed: goods.status === 'COMPLETED' }">
             <img :src="currentImage || goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
+            <div v-if="goods.status === 'COMPLETED'" class="detail-soldout">
+              <span class="soldout-pill">SOLD OUT</span>
+            </div>
           </div>
           <div v-if="goods.images && goods.images.length > 1" class="thumbnail-list">
             <img
@@ -43,7 +46,7 @@
               :src="image"
               :alt="`${goods.title} ${index + 1}`"
               @click="currentImage = image"
-              :class="{ active: currentImage === image || (!currentImage && index === 0) }"
+              :class="{ active: currentImage === image || (!currentImage && index === 0), completed: goods.status === 'COMPLETED' }"
               class="thumbnail"
             />
           </div>
@@ -349,6 +352,7 @@ onUnmounted(() => {
 }
 
 .main-image {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   border-radius: 12px;
@@ -360,6 +364,33 @@ onUnmounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: var(--transition);
+}
+
+.main-image.completed img {
+  filter: grayscale(0.75) brightness(0.8);
+}
+
+.detail-soldout {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
+.soldout-pill {
+  background: rgba(20, 20, 20, 0.8);
+  color: #fff;
+  padding: 12px 32px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
 }
 
 .thumbnail-list {
@@ -382,6 +413,11 @@ onUnmounted(() => {
 .thumbnail.active {
   border-color: var(--primary-red);
   transform: scale(1.05);
+}
+
+.thumbnail.completed {
+  filter: grayscale(0.7);
+  opacity: 0.75;
 }
 
 .goods-info {

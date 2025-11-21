@@ -10,7 +10,7 @@ export const categoryImages = {
   '키링': '/images/images/keyring.jpg',
   '인형': '/images/images/plush.jpg',
   '포스터': '/images/images/poster.jpg',
-  '그 외 굿즈': '/images/images/other.jpg',
+  '뱃지류': '/images/images/other.jpg',
   '기타': '/images/images/other.jpg'
 }
 
@@ -165,11 +165,11 @@ export const mockGoods = [
   },
   {
     id: 7,
-    title: '【굿즈-그 외 굿즈】 블루 아카이브 뱃지 세트',
+    title: '【굿즈-뱃지류】 블루 아카이브 뱃지 세트',
     sellerNickname: '게임컬렉터',
     sellerId: 7,
     animeTitle: '블루 아카이브',
-    category: '그 외 굿즈',
+    category: '뱃지류',
     description: '블루 아카이브 캐릭터 뱃지 세트입니다. 총 5개 구성입니다.',
     images: [
       '/images/images/other.jpg'

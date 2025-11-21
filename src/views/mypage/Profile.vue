@@ -1,3 +1,26 @@
+.input-wrapper {
+  margin-top: 4px;
+}
+.form-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: nowrap;
+}
+
+.flex-item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .form-row {
+    flex-direction: column;
+    flex-wrap: wrap;
+  }
+}
+
 <template>
   <div class="profile-page">
     <h1 class="page-title">정보 수정</h1>
@@ -26,6 +49,75 @@
           placeholder="닉네임을 입력하세요"
           class="form-input"
         />
+      </div>
+
+      <!-- 기본 정보 -->
+      <div class="form-section info-list">
+        <div class="info-row">
+          <span class="info-label">이름</span>
+          <span class="info-value">{{ user?.name || '-' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">아이디</span>
+          <span class="info-value">{{ user?.username || '-' }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">이메일</span>
+          <span class="info-value">{{ user?.email || '-' }}</span>
+        </div>
+      </div>
+
+      <!-- 계좌 정보 -->
+      <div class="form-section account-section">
+        <label class="section-label">계좌 정보 <span class="required">*</span></label>
+        <div class="account-row">
+          <div class="account-field">
+            <label for="profileBank">계좌은행 <span class="required">*</span></label>
+            <select
+              id="profileBank"
+              v-model="form.accountBank"
+              class="form-input select-input"
+              required
+            >
+              <option value="" disabled>은행을 선택하세요</option>
+              <option v-for="bank in bankOptions" :key="bank" :value="bank">
+                {{ bank }}
+              </option>
+            </select>
+          </div>
+          <div class="account-field">
+            <label for="profileAccount">계좌번호 <span class="required">*</span></label>
+            <input
+              id="profileAccount"
+              v-model="form.accountNumber"
+              type="text"
+              inputmode="numeric"
+              placeholder="숫자만 입력"
+              class="form-input"
+              required
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- 관심 카테고리 (수정 가능) -->
+      <div class="form-section">
+        <label class="section-label">관심 카테고리 (선택)</label>
+        <div class="category-checkboxes">
+          <label
+            v-for="category in categories"
+            :key="category"
+            class="checkbox-label"
+          >
+            <input
+              type="checkbox"
+              :value="category"
+              v-model="form.favoriteCategories"
+              class="checkbox-input"
+            />
+            <span>{{ category }}</span>
+          </label>
+        </div>
       </div>
 
       <!-- 관심 애니메이션 -->
@@ -68,7 +160,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
@@ -86,7 +178,35 @@ const profileImage = ref('')
 
 const form = ref({
   nickname: '',
-  favoriteAnimes: []
+  favoriteAnimes: [],
+  favoriteCategories: [],
+  accountBank: '',
+  accountNumber: ''
+})
+
+const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
+const bankOptions = [
+  '국민은행',
+  '신한은행',
+  '우리은행',
+  '하나은행',
+  '농협은행',
+  '기업은행',
+  '카카오뱅크',
+  '토스뱅크'
+]
+
+const formattedAccountNumber = computed(() => {
+  const acct = user.value?.accountNumber
+  if (!acct) return '-'
+  if (acct.includes('-')) return acct
+  if (acct.length >= 6) {
+    const part1 = acct.slice(0, 3)
+    const part2 = acct.slice(3, 7)
+    const part3 = acct.slice(7)
+    return [part1, part2, part3].filter(Boolean).join('-')
+  }
+  return acct
 })
 
 function handleAnimeSelected(anime) {
@@ -114,11 +234,28 @@ async function handleSubmit() {
     return
   }
 
+  if (!form.value.accountBank) {
+    errorMessage.value = '계좌은행을 선택해주세요.'
+    return
+  }
+
+  if (!form.value.accountNumber.trim()) {
+    errorMessage.value = '계좌번호를 입력해주세요.'
+    return
+  }
+
+  const sanitizedAccountNumber = form.value.accountNumber.replace(/\D/g, '')
+  if (!sanitizedAccountNumber) {
+    errorMessage.value = '계좌번호는 숫자만 입력해주세요.'
+    return
+  }
+
   loading.value = true
   errorMessage.value = ''
 
   const profileData = {
     ...form.value,
+    accountNumber: sanitizedAccountNumber,
     profileImage: profileImage.value
   }
 
@@ -147,15 +284,19 @@ async function handleWithdraw() {
   }
 }
 
-onMounted(() => {
-  if (user.value) {
-    form.value = {
-      nickname: user.value.nickname || '',
-      favoriteAnimes: user.value.favoriteAnimes || []
-    }
-    profileImage.value = user.value.profileImage || ''
-  }
-})
+watch(
+  user,
+  (newUser) => {
+    if (!newUser) return
+    form.value.nickname = newUser.nickname || ''
+    form.value.favoriteAnimes = newUser.favoriteAnimes ? [...newUser.favoriteAnimes] : []
+    form.value.favoriteCategories = newUser.favoriteCategories ? [...newUser.favoriteCategories] : []
+    form.value.accountBank = newUser.accountBank || ''
+    form.value.accountNumber = newUser.accountNumber || ''
+    profileImage.value = newUser.profileImage || ''
+  },
+  { immediate: true }
+)
 </script>
 
 <style scoped>
@@ -225,10 +366,152 @@ onMounted(() => {
   transition: var(--transition);
 }
 
+.form-input:disabled {
+  background: #f7f7f7;
+  color: var(--text-gray);
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
 .form-input:focus {
   border-color: rgba(255, 71, 87, 0.6);
   outline: none;
   box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.12);
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 20px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-gray);
+}
+
+.info-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dark);
+  text-align: right;
+}
+
+.account-row {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.35fr) minmax(220px, 0.65fr);
+  gap: 20px;
+  width: 100%;
+  align-items: start;
+}
+
+.account-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+@media (max-width: 640px) {
+  .account-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.select-input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  background-size: 10px;
+}
+
+.info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 20px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.08);
+}
+
+.info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.info-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-gray);
+}
+
+.info-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-dark);
+  text-align: right;
+}
+
+.category-checkboxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 10px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  background: #fff;
+  transition: var(--transition);
+}
+
+.checkbox-label:hover {
+  border-color: rgba(255, 71, 87, 0.4);
+}
+
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--primary-red);
 }
 
 .error-message {

@@ -16,6 +16,9 @@
       </div>
       <div v-if="goods.status === 'COMPLETED'" class="status-badge completed-badge">완료</div>
       <div v-else-if="goods.status === 'ONGOING'" class="status-badge ongoing-badge">진행중</div>
+      <div v-if="goods.status === 'COMPLETED'" class="soldout-overlay">
+        <span class="soldout-pill">SOLD OUT</span>
+      </div>
     </div>
     
     <div class="goods-info">
@@ -88,6 +91,30 @@ async function toggleWishlist() {
 .goods-card.completed {
   opacity: 0.6;
   background: #f5f5f5;
+}
+
+.soldout-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.soldout-pill {
+  background: rgba(20, 20, 20, 0.75);
+  color: white;
+  padding: 12px 28px;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .goods-image-wrapper {

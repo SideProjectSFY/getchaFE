@@ -4,42 +4,65 @@
       <h1 class="page-title">굿즈 등록</h1>
 
       <form @submit.prevent="handleSubmit" class="register-form">
+        <!-- 경매 글 제목 -->
+        <div class="form-section">
+          <label class="section-label">제목 <span class="required">*</span></label>
+          <input
+            v-model="form.title"
+            type="text"
+            placeholder="예: 주술회전 고죠 사토루 프리미엄 피규어"
+            class="form-input"
+            required
+          />
+        </div>
+
         <!-- 이미지 업로드 -->
         <div class="form-section">
-          <label class="section-label">굿즈 이미지 <span class="required">*</span></label>
+          <label class="section-label">사진 등록 <span class="required">*</span></label>
           <div class="image-upload-area">
-            <div
-              v-for="(image, index) in form.images"
-              :key="index"
-              class="image-preview"
-            >
-              <img :src="image.preview" :alt="`이미지 ${index + 1}`" />
-              <button type="button" @click="removeImage(index)" class="remove-image-btn">×</button>
-            </div>
-            <!-- 샘플 이미지 선택 -->
-            <div v-if="form.images.length < 10" class="sample-images">
-              <p class="sample-label">또는 샘플 이미지 선택:</p>
-              <div class="sample-image-grid">
-                <div
-                  v-for="(sample, index) in sampleImages"
-                  :key="index"
-                  class="sample-image-item"
-                  @click="selectSampleImage(sample)"
+            <div class="main-image-panel" :class="{ empty: !currentMainImage }">
+              <template v-if="currentMainImage">
+                <img :src="currentMainImage.preview" alt="선택된 이미지" class="main-image" />
+                <button
+                  type="button"
+                  @click="removeImage(safeMainIndex)"
+                  class="remove-image-btn"
                 >
-                  <img :src="sample" :alt="`샘플 이미지 ${index + 1}`" />
+                  ×
+                </button>
+              </template>
+              <template v-else>
+                <div class="main-placeholder">
+                  <p>이미지를 업로드하면 크게 미리보기로 보여집니다.</p>
+                  <span>최대 10장의 이미지를 등록할 수 있어요.</span>
                 </div>
+              </template>
+            </div>
+            <div class="upload-row">
+              <label v-if="form.images.length < 10" class="upload-btn large-upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  @change="handleImageUpload"
+                  class="file-input"
+                />
+                <span>+ 이미지 추가</span>
+              </label>
+              <div class="thumbnail-strip" v-if="form.images.length">
+                <button
+                  v-for="(image, index) in form.images"
+                  :key="`thumb-${index}`"
+                  type="button"
+                  class="thumbnail-button"
+                  :class="{ active: index === safeMainIndex }"
+                  @click="selectMainImage(index)"
+                >
+                  <img :src="image.preview" :alt="`이미지 ${index + 1}`" />
+                  <span class="thumb-remove" @click.stop="removeImage(index)">×</span>
+                </button>
               </div>
             </div>
-            <label v-if="form.images.length < 10" class="upload-btn">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                @change="handleImageUpload"
-                class="file-input"
-              />
-              <span>+ 이미지 추가</span>
-            </label>
           </div>
         </div>
 
@@ -50,17 +73,6 @@
             v-model="selectedAnime"
             :max="1"
             @anime-selected="handleAnimeSelected"
-          />
-        </div>
-
-        <!-- 캐릭터명 -->
-        <div class="form-section">
-          <label class="section-label">캐릭터명 (선택)</label>
-          <input
-            v-model="form.characterName"
-            type="text"
-            placeholder="캐릭터명을 입력하세요"
-            class="form-input"
           />
         </div>
 
@@ -144,7 +156,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useGoodsStore } from '../../stores/goods'
 import AnimeSearch from '../../components/AnimeSearch.vue'
@@ -158,33 +170,41 @@ const loading = ref(false)
 const errorMessage = ref('')
 const selectedAnime = ref([])
 
-// 샘플 이미지 목록
-const sampleImages = [
-  '/images/images/figure.jpg',
-  '/images/images/figure-2.jpg',
-  '/images/images/figure-3.jpg',
-  '/images/images/photocard.jpg',
-  '/images/images/photocard-1.jpg',
-  '/images/images/acrylic-stand.jpg',
-  '/images/images/keyring.jpg',
-  '/images/images/plush.jpg',
-  '/images/images/poster.jpg',
-  '/images/images/jujutsu-kaisen-goods.jpg',
-  '/images/images/demon-slayer-goods.jpg',
-  '/images/images/attack-on-titan-goods.jpg'
-]
+const mainImageIndex = ref(-1)
 
 const form = ref({
+  title: '',
   images: [],
   animeId: null,
   animeTitle: '',
-  characterName: '',
   category: '',
   description: '',
   startPrice: null,
   maxPrice: null,
   duration: 3
 })
+
+const safeMainIndex = computed(() => {
+  if (!form.value.images.length) return -1
+  if (mainImageIndex.value >= 0 && mainImageIndex.value < form.value.images.length) {
+    return mainImageIndex.value
+  }
+  return form.value.images.length - 1
+})
+
+const currentMainImage = computed(() => {
+  const idx = safeMainIndex.value
+  return idx >= 0 ? form.value.images[idx] : null
+})
+
+watch(
+  safeMainIndex,
+  (idx) => {
+    if (idx !== mainImageIndex.value) {
+      mainImageIndex.value = idx
+    }
+  }
+)
 
 function handleImageUpload(event) {
   const files = Array.from(event.target.files)
@@ -197,6 +217,7 @@ function handleImageUpload(event) {
         file,
         preview: e.target.result
       })
+      mainImageIndex.value = form.value.images.length - 1
     }
     reader.readAsDataURL(file)
   })
@@ -204,6 +225,17 @@ function handleImageUpload(event) {
 
 function removeImage(index) {
   form.value.images.splice(index, 1)
+  if (form.value.images.length === 0) {
+    mainImageIndex.value = -1
+  } else if (index === mainImageIndex.value) {
+    mainImageIndex.value = Math.min(index, form.value.images.length - 1)
+  } else if (index < mainImageIndex.value) {
+    mainImageIndex.value -= 1
+  }
+}
+
+function selectMainImage(index) {
+  mainImageIndex.value = index
 }
 
 function handleAnimeSelected(anime) {
@@ -212,6 +244,11 @@ function handleAnimeSelected(anime) {
 }
 
 async function handleSubmit() {
+  if (!form.value.title.trim()) {
+    errorMessage.value = '경매 글 제목을 입력해주세요.'
+    return
+  }
+
   if (form.value.images.length === 0) {
     errorMessage.value = '이미지를 최소 1개 이상 업로드해주세요.'
     return
@@ -237,6 +274,7 @@ async function handleSubmit() {
 
   const goodsData = {
     ...form.value,
+    title: form.value.title.trim(),
     images: form.value.images.map(img => img.file)
   }
 
@@ -294,73 +332,106 @@ async function handleSubmit() {
 
 .image-upload-area {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.sample-images {
+.main-image-panel {
+  position: relative;
   width: 100%;
+  padding-top: 58%;
+  border-radius: 24px;
+  overflow: hidden;
+  border: 2px solid rgba(0, 0, 0, 0.06);
+  background: #f9f9f9;
+}
+
+.main-image-panel.empty {
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  min-height: 320px;
+}
+
+.main-image {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.main-placeholder {
+  text-align: center;
+  color: var(--text-light);
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  background: #f8f8ff;
-  border: 1px dashed rgba(255, 0, 0, 0.2);
-  border-radius: 12px;
-  padding: 16px;
+  gap: 8px;
+  font-size: 14px;
 }
 
-.sample-label {
-  font-size: 13px;
-  color: var(--text-gray);
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
 }
 
-.sample-image-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+.thumbnail-strip {
+  display: flex;
+  align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
-.sample-image-item {
+.thumbnail-button {
+  position: relative;
   width: 70px;
   height: 70px;
-  border-radius: 10px;
+  border-radius: 14px;
   overflow: hidden;
   border: 2px solid transparent;
+  padding: 0;
+  background: transparent;
   cursor: pointer;
   transition: var(--transition);
 }
 
-.sample-image-item img {
+.thumbnail-button img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  display: block;
 }
 
-.sample-image-item:hover {
-  border-color: rgba(255, 0, 0, 0.3);
-  transform: translateY(-2px);
+.thumbnail-button.active {
+  border-color: var(--primary-red);
+  box-shadow: 0 6px 16px rgba(255, 71, 87, 0.25);
 }
 
-.image-preview {
-  position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 2px solid var(--border-color);
-}
-
-.image-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.remove-image-btn {
+.thumb-remove {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: var(--primary-red);
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 14px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.remove-image-btn,
+.remove-thumb-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
   color: white;
   border: none;
   border-radius: 50%;
@@ -370,26 +441,37 @@ async function handleSubmit() {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
 }
 
+.remove-image-btn:hover,
+.remove-thumb-btn:hover,
+.thumb-remove:hover {
+  background: rgba(220, 20, 60, 0.85);
+}
+
 .upload-btn {
-  width: 120px;
-  height: 120px;
   border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  display: flex;
+  border-radius: 20px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   transition: var(--transition);
-  background: var(--bg-light);
+  background: #fff;
+  padding: 16px 24px;
+  font-weight: 700;
+  color: var(--primary-red);
+}
+
+.large-upload {
+  align-self: flex-start;
 }
 
 .upload-btn:hover {
   border-color: var(--primary-red);
-  background: rgba(230, 57, 70, 0.05);
+  background: rgba(255, 71, 87, 0.08);
 }
 
 .file-input {
@@ -401,11 +483,24 @@ async function handleSubmit() {
 .form-textarea {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
   font-size: 15px;
   transition: var(--transition);
   font-family: inherit;
+  background: #fff;
+}
+
+.form-select {
+  height: 48px;
+  padding-right: 44px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  background-size: 12px;
 }
 
 .form-input:focus,

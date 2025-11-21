@@ -5,12 +5,23 @@
       <div class="container">
         <h2 class="section-title">당신을 위한 추천</h2>
         <div v-if="isAuthenticated">
-          <div v-if="recommendedGoods.length > 0" class="goods-grid">
-            <GoodsCard
-              v-for="goods in recommendedGoods"
-              :key="goods.id"
-              :goods="goods"
-            />
+          <div
+            v-if="recommendedGoods.length > 0"
+            class="carousel-shell"
+            @mouseenter="stopCarousel"
+            @mouseleave="startCarousel"
+          >
+            <button class="carousel-btn prev" type="button" @click="handleCarouselClick(-1)" aria-label="이전 추천 보기">
+              ‹
+            </button>
+            <div class="carousel-track" ref="carouselRef">
+              <div v-for="goods in recommendedGoods" :key="goods.id" class="carousel-card">
+                <GoodsCard :goods="goods" />
+              </div>
+            </div>
+            <button class="carousel-btn next" type="button" @click="handleCarouselClick(1)" aria-label="다음 추천 보기">
+              ›
+            </button>
           </div>
           <div v-else class="empty-state">
             <p>아직 추천할 굿즈가 없습니다.</p>
@@ -64,7 +75,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
 import GoodsCard from '../components/GoodsCard.vue'
@@ -79,6 +90,9 @@ const categories = computed(() => goodsStore.categories)
 
 const recommendedGoods = ref([])
 const popularGoods = ref([])
+const carouselRef = ref(null)
+let carouselTimer = null
+let restartTimer = null
 
 async function fetchRecommendedGoods() {
   if (!isAuthenticated.value) return
@@ -108,6 +122,62 @@ function getCategoryImage(category) {
   return goodsStore.getCategoryImage(category)
 }
 
+function scrollCarousel(direction = 1, isManual = false) {
+  const track = carouselRef.value
+  if (!track || !recommendedGoods.value.length) return
+  const scrollAmount = Math.max(track.clientWidth * 0.8, 260)
+  const atEnd = track.scrollLeft + track.clientWidth >= track.scrollWidth - 5
+  const atStart = track.scrollLeft <= 5
+
+  if (direction > 0) {
+    if (atEnd) {
+      track.scrollTo({ left: 0, behavior: 'smooth' })
+    } else {
+      track.scrollBy({ left: scrollAmount, behavior: 'smooth' })
+    }
+  } else {
+    if (atStart) {
+      track.scrollTo({ left: track.scrollWidth, behavior: 'auto' })
+    }
+    track.scrollBy({ left: -scrollAmount, behavior: 'smooth' })
+  }
+
+  if (isManual) {
+    restartCarousel()
+  }
+}
+
+function startCarousel() {
+  if (!isAuthenticated.value || !recommendedGoods.value.length) return
+  stopCarousel()
+  carouselTimer = setInterval(() => {
+    scrollCarousel(1)
+  }, 4000)
+}
+
+function stopCarousel() {
+  if (carouselTimer) {
+    clearInterval(carouselTimer)
+    carouselTimer = null
+  }
+}
+
+function restartCarousel() {
+  stopCarousel()
+  if (restartTimer) {
+    clearTimeout(restartTimer)
+    restartTimer = null
+  }
+  restartTimer = setTimeout(() => {
+    startCarousel()
+    restartTimer = null
+  }, 3500)
+}
+
+function handleCarouselClick(direction) {
+  scrollCarousel(direction, true)
+}
+
 onMounted(() => {
   fetchRecommendedGoods()
   fetchPopularGoods()
@@ -119,7 +189,33 @@ onMounted(() => {
   if (popularGoods.value.length === 0) {
     popularGoods.value = mockPopularGoods
   }
+
+  nextTick(() => startCarousel())
 })
+
+onUnmounted(() => {
+  stopCarousel()
+  if (restartTimer) {
+    clearTimeout(restartTimer)
+    restartTimer = null
+  }
+})
+
+watch(
+  () => ({
+    length: recommendedGoods.value.length,
+    auth: isAuthenticated.value
+  }),
+  () => {
+    nextTick(() => {
+      if (isAuthenticated.value && recommendedGoods.value.length > 0) {
+        startCarousel()
+      } else {
+        stopCarousel()
+      }
+    })
+  }
+)
 </script>
 
 <style scoped>
@@ -138,6 +234,74 @@ onMounted(() => {
 .recommendation-section {
   padding: 60px 0;
   background: #FFFFFF;
+}
+
+.carousel-shell {
+  position: relative;
+  padding: 20px 48px;
+}
+
+.carousel-track {
+  display: flex;
+  gap: 20px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 12px;
+}
+
+.carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.carousel-card {
+  flex: 0 0 320px;
+  scroll-snap-align: start;
+}
+
+.carousel-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  color: var(--text-dark);
+  cursor: pointer;
+  transition: var(--transition);
+  z-index: 2;
+}
+
+.carousel-btn:hover {
+  background: var(--primary-red);
+  color: white;
+  border-color: transparent;
+}
+
+.carousel-btn.prev {
+  left: 0;
+}
+
+.carousel-btn.next {
+  right: 0;
+}
+
+.carousel-shell::after {
+  content: '';
+  position: absolute;
+  left: 48px;
+  right: 48px;
+  bottom: 0;
+  height: 60px;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.95) 100%);
 }
 
 
@@ -269,6 +433,14 @@ onMounted(() => {
   .goods-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
+  }
+
+  .carousel-shell {
+    padding: 10px 0;
+  }
+
+  .carousel-btn {
+    display: none;
   }
 }
 </style>

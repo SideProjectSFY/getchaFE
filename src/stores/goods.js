@@ -15,7 +15,7 @@ export const useGoodsStore = defineStore('goods', () => {
     '키링',
     '인형',
     '포스터',
-    '그 외 굿즈',
+    '뱃지류',
     '기타'
   ])
 

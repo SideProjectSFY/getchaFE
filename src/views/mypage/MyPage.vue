@@ -19,12 +19,13 @@
               :key="item.to"
               :to="item.to"
               class="nav-item"
+              :class="{ active: isActive(item.to) }"
             >
-              <span class="nav-gachaball">
-                <span class="ball-top"></span>
-                <span class="ball-bottom"></span>
-                <span class="ball-button"></span>
-              </span>
+              <img
+                :src="isActive(item.to) ? openIcon : closedIcon"
+                :alt="isActive(item.to) ? '열린 가챠볼' : '닫힌 가챠볼'"
+                class="nav-icon"
+              />
               <span class="nav-label">{{ item.label }}</span>
             </router-link>
           </nav>
@@ -40,10 +41,15 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
+const route = useRoute()
+
+const closedIcon = '/images/gacha-closed.png'
+const openIcon = '/images/gacha-open.png'
 
 const menuItems = [
   { to: '/mypage/wishlist', label: '찜 리스트' },
@@ -54,6 +60,8 @@ const menuItems = [
   { to: '/mypage/favorites', label: '관심 애니메이션' },
   { to: '/mypage/profile', label: '정보 수정' }
 ]
+
+const isActive = (path) => route.path.startsWith(path)
 </script>
 
 <style scoped>
@@ -137,60 +145,22 @@ const menuItems = [
   color: var(--primary-red);
 }
 
-.nav-item.router-link-active {
+.nav-item.router-link-active,
+.nav-item.active {
   background: rgba(255, 71, 87, 0.08);
   border-color: rgba(255, 71, 87, 0.2);
   color: var(--primary-red);
 }
 
-.nav-gachaball {
-  position: relative;
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-  pointer-events: none;
-}
-
-.ball-top,
-.ball-bottom {
-  position: absolute;
-  left: 0;
-  width: 100%;
-  height: 52%;
-  background: #ffe7f3;
-  border-radius: 14px 14px 0 0;
-  border: 1px solid rgba(0, 0, 0, 0.05);
+.nav-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
   transition: transform 0.3s ease;
 }
 
-.ball-bottom {
-  top: 48%;
-  border-radius: 0 0 14px 14px;
-  background: #ffb6d3;
-}
-
-.ball-button {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: #fff;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-}
-
-.nav-item:hover .ball-top {
+.nav-item.active .nav-icon {
   transform: translateY(-2px);
-}
-
-.nav-item.router-link-active .ball-top {
-  transform: translateY(-5px);
-}
-
-.nav-item.router-link-active .ball-bottom {
-  transform: translateY(3px);
 }
 
 .nav-label {
