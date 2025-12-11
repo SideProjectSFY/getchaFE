@@ -92,7 +92,12 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory(),
-  routes
+  routes,
+  // 이전 위치를 그대로 유지하도록 설정
+  scrollBehavior(to, from, savedPosition) {
+    if (savedPosition) return savedPosition
+    return false
+  }
 })
 
 router.beforeEach((to, from, next) => {

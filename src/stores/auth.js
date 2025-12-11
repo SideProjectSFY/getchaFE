@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api'
-import { validateUser, getUserById } from '../data/mockUsers'
+import { validateUserByEmail, getUserById } from '../data/mockUsers'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -11,7 +11,10 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function login(credentials) {
     try {
-      const response = await api.post('/auth/login', credentials)
+      const response = await api.post('/auth/login', {
+        email: credentials.email,
+        password: credentials.password
+      })
       token.value = response.data.token
       user.value = response.data.user
       localStorage.setItem('token', token.value)
@@ -19,7 +22,7 @@ export const useAuthStore = defineStore('auth', () => {
       return { success: true }
     } catch (error) {
       // API 실패 시 목 데이터에서 검증
-      const foundUser = validateUser(credentials.username, credentials.password)
+      const foundUser = validateUserByEmail(credentials.email, credentials.password)
       if (foundUser) {
         const { password, ...userWithoutPassword } = foundUser
         token.value = `mock_token_${foundUser.id}`

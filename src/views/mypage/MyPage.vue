@@ -5,7 +5,7 @@
         <aside class="sidebar">
           <div class="user-profile">
             <img
-              :src="user?.profileImage || '/placeholder.png'"
+              :src="profileImage"
               :alt="user?.nickname"
               class="profile-image"
             />
@@ -46,6 +46,10 @@ import { useAuthStore } from '../../stores/auth'
 
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
+const profileImage = computed(() => {
+  const fav = authStore.user?.favoriteAnimes?.[0]
+  return fav?.coverImage?.large || fav?.coverImage?.medium || authStore.user?.profileImage || '/placeholder.png'
+})
 const route = useRoute()
 
 const closedIcon = '/images/gacha-closed.png'

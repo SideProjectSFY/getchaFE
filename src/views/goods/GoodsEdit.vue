@@ -5,47 +5,77 @@
 
       <div v-if="loading" class="loading">로딩 중...</div>
       <form v-else @submit.prevent="handleSubmit" class="edit-form">
-        <!-- 기존 이미지 및 새 이미지 업로드 -->
+        <!-- 제목 -->
         <div class="form-section">
-          <label class="section-label">굿즈 이미지</label>
+          <label class="section-label">제목 <span class="required">*</span></label>
+          <input
+            v-model="form.title"
+            type="text"
+            placeholder="예: 주술회전 고죠 사토루 프리미엄 피규어"
+            class="form-input"
+            required
+          />
+        </div>
+
+        <!-- 이미지 업로드 (등록 폼과 동일 구조) -->
+        <div class="form-section">
+          <label class="section-label">사진 등록 <span class="required">*</span></label>
           <div class="image-upload-area">
-            <div
-              v-for="(image, index) in existingImages"
-              :key="`existing-${index}`"
-              class="image-preview"
-            >
-              <img :src="image" :alt="`이미지 ${index + 1}`" />
-              <button type="button" @click="removeExistingImage(index)" class="remove-image-btn">×</button>
+            <div class="main-image-panel" :class="{ empty: !currentMainImage }">
+              <template v-if="currentMainImage">
+                <img :src="currentMainImage.url" alt="선택된 이미지" class="main-image" />
+                <button
+                  type="button"
+                  class="remove-image-btn"
+                  @click="removeByMainIndex"
+                >
+                  ×
+                </button>
+              </template>
+              <template v-else>
+                <div class="main-placeholder">
+                  <p>이미지를 업로드하면 크게 미리보기로 보여집니다.</p>
+                  <span>최대 10장의 이미지를 등록할 수 있어요.</span>
+                </div>
+              </template>
             </div>
-            <div
-              v-for="(image, index) in form.images"
-              :key="`new-${index}`"
-              class="image-preview"
-            >
-              <img :src="image.preview" :alt="`새 이미지 ${index + 1}`" />
-              <button type="button" @click="removeImage(index)" class="remove-image-btn">×</button>
+
+            <div class="upload-row">
+              <label v-if="allImages.length < 10" class="upload-btn large-upload">
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  @change="handleImageUpload"
+                  class="file-input"
+                />
+                <span>+ 이미지 추가</span>
+              </label>
+
+              <div class="thumbnail-strip" v-if="allImages.length">
+                <button
+                  v-for="(thumb, index) in allImages"
+                  :key="`thumb-${index}`"
+                  type="button"
+                  class="thumbnail-button"
+                  :class="{ active: index === safeMainIndex }"
+                  @click="selectMainImage(index)"
+                >
+                  <img :src="thumb.url" :alt="`이미지 ${index + 1}`" />
+                  <span class="thumb-remove" @click.stop="removeByIndex(index)">×</span>
+                </button>
+              </div>
             </div>
-            <label v-if="(existingImages.length + form.images.length) < 10" class="upload-btn">
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                @change="handleImageUpload"
-                class="file-input"
-              />
-              <span>+ 이미지 추가</span>
-            </label>
           </div>
         </div>
 
-        <!-- 애니메이션 (수정 불가) -->
+        <!-- 애니메이션 선택 -->
         <div class="form-section">
-          <label class="section-label">애니메이션</label>
-          <input
-            :value="goods.animeTitle"
-            type="text"
-            disabled
-            class="form-input disabled"
+          <label class="section-label">애니메이션 <span class="required">*</span></label>
+          <AnimeSearch
+            v-model="selectedAnime"
+            :max="1"
+            @anime-selected="handleAnimeSelected"
           />
         </div>
 
@@ -81,6 +111,47 @@
           ></textarea>
         </div>
 
+        <!-- 경매 조건 -->
+        <div class="form-section">
+          <label class="section-label">경매 조건</label>
+          <div class="auction-conditions">
+            <div class="condition-item">
+              <label>시작가 (골드) <span class="required">*</span></label>
+              <input
+                v-model.number="form.startPrice"
+                type="number"
+                min="1"
+                max="5000000"
+                placeholder="시작가를 입력하세요"
+                class="form-input"
+                required
+              />
+            </div>
+            <div class="condition-item">
+              <label>상한가/즉시구매가 (골드) (선택)</label>
+              <input
+                v-model.number="form.maxPrice"
+                type="number"
+                min="1"
+                max="5000000"
+                placeholder="즉시구매가를 입력하세요"
+                class="form-input"
+              />
+            </div>
+            <div class="condition-item">
+              <label>경매 기간 (일)</label>
+              <input
+                v-model.number="form.duration"
+                type="number"
+                min="2"
+                max="14"
+                class="form-input"
+              />
+              <span class="input-note">2일 ~ 14일 (미입력 시 기존 유지)</span>
+            </div>
+          </div>
+        </div>
+
         <div v-if="errorMessage" class="error-message">
           {{ errorMessage }}
         </div>
@@ -100,6 +171,8 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoodsStore } from '../../stores/goods'
+import { mockGoods } from '../../data/mockData'
+import AnimeSearch from '../../components/AnimeSearch.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -111,29 +184,79 @@ const loading = ref(true)
 const errorMessage = ref('')
 const goods = ref(null)
 const existingImages = ref([])
+const mainImageIndex = ref(-1)
+const selectedAnime = ref([])
 
 const form = ref({
+  title: '',
   images: [],
+  animeId: null,
+  animeTitle: '',
   characterName: '',
   category: '',
-  description: ''
+  description: '',
+  startPrice: null,
+  maxPrice: null,
+  duration: null
+})
+
+const allImages = computed(() => [
+  ...existingImages.value.map(url => ({ type: 'existing', url })),
+  ...form.value.images.map(img => ({ type: 'new', url: img.preview }))
+])
+
+const safeMainIndex = computed(() => {
+  if (!allImages.value.length) return -1
+  if (mainImageIndex.value >= 0 && mainImageIndex.value < allImages.value.length) {
+    return mainImageIndex.value
+  }
+  return allImages.value.length - 1
+})
+
+const currentMainImage = computed(() => {
+  const idx = safeMainIndex.value
+  return idx >= 0 ? allImages.value[idx] : null
 })
 
 async function fetchGoods() {
   loading.value = true
   const result = await goodsStore.fetchGoodsDetail(route.params.id)
-  if (result.success) {
-    goods.value = goodsStore.currentGoods
-    existingImages.value = [...(goods.value.images || [])]
-    form.value = {
-      images: [],
-      characterName: goods.value.characterName || '',
-      category: goods.value.category || '',
-      description: goods.value.description || ''
+
+  if (!result.success || !goodsStore.currentGoods) {
+    const found = mockGoods.find(g => g.id === Number(route.params.id))
+    if (found) {
+      goods.value = found
+      goodsStore.currentGoods = found
+    } else {
+      errorMessage.value = result.message || '굿즈 정보를 불러오는데 실패했습니다.'
+      loading.value = false
+      return
     }
   } else {
-    errorMessage.value = result.message
+    goods.value = goodsStore.currentGoods
   }
+
+  existingImages.value = [...(goods.value.images || [])]
+  form.value = {
+    title: goods.value.title || '',
+    images: [],
+    animeId: goods.value.animeId || null,
+    animeTitle: goods.value.animeTitle || '',
+    characterName: goods.value.characterName || '',
+    category: goods.value.category || '',
+    description: goods.value.description || '',
+    startPrice: goods.value.startPrice || 0,
+    maxPrice: goods.value.maxPrice || null,
+    duration: goods.value.duration || null
+  }
+  selectedAnime.value = [
+    {
+      id: goods.value.animeId || 0,
+      title: { romaji: goods.value.animeTitle, english: goods.value.animeTitle },
+      coverImage: { medium: goods.value.images?.[0] || '/placeholder.png' }
+    }
+  ]
+
   loading.value = false
 }
 
@@ -141,13 +264,13 @@ function handleImageUpload(event) {
   const files = Array.from(event.target.files)
   files.forEach(file => {
     if ((existingImages.value.length + form.value.images.length) >= 10) return
-    
     const reader = new FileReader()
     reader.onload = (e) => {
       form.value.images.push({
         file,
         preview: e.target.result
       })
+      mainImageIndex.value = allImages.value.length // last index after push
     }
     reader.readAsDataURL(file)
   })
@@ -155,15 +278,72 @@ function handleImageUpload(event) {
 
 function removeImage(index) {
   form.value.images.splice(index, 1)
+  adjustMainAfterRemove(existingImages.value.length + index)
 }
 
 function removeExistingImage(index) {
   existingImages.value.splice(index, 1)
+  adjustMainAfterRemove(index)
+}
+
+function removeByIndex(index) {
+  if (index < existingImages.value.length) {
+    removeExistingImage(index)
+  } else {
+    removeImage(index - existingImages.value.length)
+  }
+}
+
+function removeByMainIndex() {
+  if (safeMainIndex.value >= 0) {
+    removeByIndex(safeMainIndex.value)
+  }
+}
+
+function adjustMainAfterRemove(removedIndex) {
+  if (!allImages.value.length) {
+    mainImageIndex.value = -1
+    return
+  }
+  if (removedIndex < mainImageIndex.value) {
+    mainImageIndex.value -= 1
+  } else if (removedIndex === mainImageIndex.value) {
+    mainImageIndex.value = Math.min(mainImageIndex.value, allImages.value.length - 1)
+  }
+}
+
+function selectMainImage(index) {
+  mainImageIndex.value = index
+}
+
+function handleAnimeSelected(anime) {
+  form.value.animeId = anime.id
+  form.value.animeTitle = anime.title.romaji || anime.title.english
 }
 
 async function handleSubmit() {
+  if (!form.value.title.trim()) {
+    errorMessage.value = '경매 글 제목을 입력해주세요.'
+    return
+  }
+
   if (existingImages.value.length === 0 && form.value.images.length === 0) {
     errorMessage.value = '이미지를 최소 1개 이상 업로드해주세요.'
+    return
+  }
+
+  if (!form.value.category) {
+    errorMessage.value = '굿즈 종류를 선택해주세요.'
+    return
+  }
+
+  if (!form.value.animeId) {
+    errorMessage.value = '애니메이션을 선택해주세요.'
+    return
+  }
+
+  if (form.value.startPrice && form.value.startPrice > 5000000) {
+    errorMessage.value = '거래 제한 금액(500만 골드)을 초과할 수 없습니다.'
     return
   }
 
@@ -172,8 +352,11 @@ async function handleSubmit() {
 
   const goodsData = {
     ...form.value,
+    title: form.value.title.trim(),
     images: form.value.images.map(img => img.file),
-    existingImages: existingImages.value
+    existingImages: existingImages.value,
+    animeTitle: form.value.animeTitle,
+    animeId: form.value.animeId
   }
 
   const result = await goodsStore.updateGoods(route.params.id, goodsData)
@@ -234,41 +417,138 @@ onMounted(() => {
 
 .image-upload-area {
   display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
+  flex-direction: column;
+  gap: 20px;
 }
 
-.image-preview {
+.main-image-panel {
   position: relative;
-  width: 120px;
-  height: 120px;
-  border-radius: 8px;
+  width: 100%;
+  padding-top: 58%;
+  border-radius: 24px;
   overflow: hidden;
-  border: 2px solid var(--border-color);
+  border: 2px solid rgba(0, 0, 0, 0.06);
+  background: #f9f9f9;
 }
 
-.image-preview img {
+.main-image-panel.empty {
+  border-style: dashed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: 0;
+  min-height: 320px;
+}
+
+.main-image {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
+.main-placeholder {
+  text-align: center;
+  color: var(--text-light);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.thumbnail-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.thumbnail-button {
+  position: relative;
+  width: 70px;
+  height: 70px;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.thumbnail-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.thumbnail-button.active {
+  border-color: var(--primary-red);
+  box-shadow: 0 6px 16px rgba(255, 71, 87, 0.25);
+}
+
+.thumb-remove,
 .remove-image-btn {
   position: absolute;
   top: 4px;
   right: 4px;
-  background: var(--primary-red);
-  color: white;
-  border: none;
-  border-radius: 50%;
   width: 24px;
   height: 24px;
-  display: flex;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.6);
+  color: #fff;
+  font-size: 14px;
+  line-height: 24px;
+  text-align: center;
+  border: none;
+  cursor: pointer;
+}
+
+.remove-image-btn {
+  top: 8px;
+  right: 8px;
+}
+
+.thumb-remove:hover,
+.remove-image-btn:hover {
+  background: rgba(220, 20, 60, 0.85);
+}
+
+.upload-btn {
+  border: 2px dashed var(--border-color);
+  border-radius: 20px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
+  transition: var(--transition);
+  background: #fff;
+  padding: 16px 24px;
+  font-weight: 700;
+  color: var(--primary-red);
+}
+
+.large-upload {
+  align-self: flex-start;
+}
+
+.upload-btn:hover {
+  border-color: var(--primary-red);
+  background: rgba(255, 71, 87, 0.08);
+}
+
+.file-input {
+  display: none;
 }
 
 .upload-btn {
@@ -298,11 +578,24 @@ onMounted(() => {
 .form-textarea {
   width: 100%;
   padding: 14px 16px;
-  border: 2px solid var(--border-color);
-  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
   font-size: 15px;
   transition: var(--transition);
   font-family: inherit;
+  background: #fff;
+}
+
+.form-select {
+  height: 48px;
+  padding-right: 44px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23999' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  background-size: 12px;
 }
 
 .form-input.disabled {
@@ -320,6 +613,29 @@ onMounted(() => {
 
 .form-textarea {
   resize: vertical;
+}
+
+.auction-conditions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.condition-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.condition-item label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.input-note {
+  font-size: 12px;
+  color: var(--text-light);
 }
 
 .error-message {

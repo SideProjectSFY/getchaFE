@@ -28,8 +28,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useAuthStore } from '../../stores/auth'
 import api from '../../services/api'
 
+const authStore = useAuthStore()
 const loading = ref(true)
 const favoriteAnimes = ref([])
 
@@ -37,8 +39,16 @@ async function fetchFavoriteAnimes() {
   loading.value = true
   try {
     const response = await api.get('/auth/favorite-animes')
-    favoriteAnimes.value = response.data
+    if (Array.isArray(response.data) && response.data.length) {
+      favoriteAnimes.value = response.data
+    } else if (authStore.user?.favoriteAnimes?.length) {
+      favoriteAnimes.value = authStore.user.favoriteAnimes
+    } else {
+      favoriteAnimes.value = []
+    }
   } catch (error) {
+    // API 실패 시 내 정보에 저장된 관심 애니로 대체
+    favoriteAnimes.value = authStore.user?.favoriteAnimes || []
     console.error('관심 애니메이션 로딩 실패:', error)
   }
   loading.value = false

@@ -19,54 +19,6 @@
           </div>
 
           <div class="form-group">
-            <label for="nickname">닉네임 <span class="required">*</span></label>
-            <input
-              id="nickname"
-              v-model="form.nickname"
-              type="text"
-              required
-              placeholder="닉네임을 입력하세요"
-              class="form-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="name">이름 <span class="required">*</span></label>
-            <input
-              id="name"
-              v-model="form.name"
-              type="text"
-              required
-              placeholder="이름을 입력하세요"
-              class="form-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="username">아이디 <span class="required">*</span></label>
-            <input
-              id="username"
-              v-model="form.username"
-              type="text"
-              required
-              placeholder="아이디를 입력하세요"
-              class="form-input"
-            />
-          </div>
-
-          <div class="form-group">
-            <label for="password">비밀번호 <span class="required">*</span></label>
-            <input
-              id="password"
-              v-model="form.password"
-              type="password"
-              required
-              placeholder="비밀번호를 입력하세요"
-              class="form-input"
-            />
-          </div>
-
-          <div class="form-group">
             <label for="email">이메일 <span class="required">*</span></label>
             <div class="email-input-group">
               <input
@@ -92,6 +44,42 @@
               type="text"
               placeholder="인증 코드를 입력하세요"
               class="form-input verification-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="password">비밀번호 <span class="required">*</span></label>
+            <input
+              id="password"
+              v-model="form.password"
+              type="password"
+              required
+              placeholder="비밀번호를 입력하세요"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="name">이름 <span class="required">*</span></label>
+            <input
+              id="name"
+              v-model="form.name"
+              type="text"
+              required
+              placeholder="이름을 입력하세요"
+              class="form-input"
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="nickname">닉네임 <span class="required">*</span></label>
+            <input
+              id="nickname"
+              v-model="form.nickname"
+              type="text"
+              required
+              placeholder="닉네임을 입력하세요"
+              class="form-input"
             />
           </div>
 
@@ -133,25 +121,6 @@
             </div>
           </div>
 
-          <div class="form-group">
-            <label>관심 카테고리 (선택)</label>
-            <div class="category-checkboxes">
-              <label
-                v-for="category in categories"
-                :key="category"
-                class="checkbox-label"
-              >
-                <input
-                  type="checkbox"
-                  :value="category"
-                  v-model="form.favoriteCategories"
-                  class="checkbox-input"
-                />
-                <span>{{ category }}</span>
-              </label>
-            </div>
-          </div>
-
           <div v-if="errorMessage" class="error-message">
             {{ errorMessage }}
           </div>
@@ -175,25 +144,21 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { useGoodsStore } from '../../stores/goods'
 import AnimeSearch from '../../components/AnimeSearch.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const goodsStore = useGoodsStore()
 
 const form = ref({
   nickname: '',
   name: '',
-  username: '',
   password: '',
   email: '',
   verificationCode: '',
   favoriteAnimes: [],
-  favoriteCategories: [],
   accountBank: '',
   accountNumber: ''
 })
@@ -204,7 +169,6 @@ const emailSent = ref(false)
 const emailVerified = ref(false)
 const profileImage = ref('')
 
-const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
 const bankOptions = [
   '국민은행',
   '신한은행',
@@ -279,6 +243,8 @@ async function handleRegister() {
 
   const registerData = {
     ...form.value,
+    username: form.value.email,
+    favoriteCategories: [],
     accountNumber: sanitizedAccountNumber,
     profileImage: profileImage.value
   }
@@ -395,8 +361,8 @@ watch(() => form.value.verificationCode, checkVerificationCode)
 
 .profile-img,
 .profile-placeholder {
-  width: 120px;
-  height: 120px;
+  width: 140px;
+  height: 140px;
   border-radius: 24px;
   object-fit: cover;
   border: 2px solid rgba(0, 0, 0, 0.08);

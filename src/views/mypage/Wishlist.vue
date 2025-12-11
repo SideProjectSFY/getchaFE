@@ -5,7 +5,12 @@
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="wishlistGoods.length > 0">
       <div class="mini-cards-grid">
-        <div class="mini-card" v-for="goods in paginatedGoods" :key="goods.id">
+        <div
+          class="mini-card"
+          v-for="goods in paginatedGoods"
+          :key="goods.id"
+          @click="goDetail(goods.id)"
+        >
           <div class="mini-card-thumb">
             <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
           </div>
@@ -13,7 +18,6 @@
             <h3 class="mini-card-title">{{ goods.title }}</h3>
             <p class="mini-card-meta">{{ goods.animeTitle }} · {{ goods.category }}</p>
             <p class="mini-card-price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</p>
-            <router-link :to="`/goods/${goods.id}`" class="mini-card-link">자세히 보기</router-link>
           </div>
         </div>
       </div>
@@ -31,12 +35,14 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import api from '../../services/api'
 import { getGoodsByIds, mockWishlistByUser } from '../../data/mockData'
 import { formatPrice } from '../../utils/format'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const loading = ref(true)
 const wishlistGoods = ref([])
@@ -85,6 +91,10 @@ watch(wishlistGoods, () => {
 onMounted(() => {
   fetchWishlist()
 })
+
+function goDetail(id) {
+  router.push(`/goods/${id}`)
+}
 </script>
 
 <style scoped>
@@ -102,7 +112,7 @@ onMounted(() => {
 
 .mini-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 18px;
 }
 
@@ -113,11 +123,18 @@ onMounted(() => {
   border-radius: 20px;
   background: white;
   box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .mini-card-thumb {
-  width: 70px;
-  height: 70px;
+  width: 80px;
+  height: 80px;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
@@ -136,9 +153,12 @@ onMounted(() => {
 }
 
 .mini-card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .mini-card-meta {

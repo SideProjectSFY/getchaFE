@@ -5,15 +5,37 @@
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="registeredGoods.length > 0">
       <div class="mini-cards-grid">
-        <div class="mini-card" v-for="goods in paginatedGoods" :key="goods.id">
-          <div class="mini-card-thumb">
+        <div
+          class="mini-card"
+          v-for="goods in paginatedGoods"
+          :key="goods.id"
+          @click="goDetail(goods.id)"
+        >
+          <div class="mini-card-thumb" :class="{ faded: isEnded(goods.status) }">
             <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
+          </div>
+          <div class="status-under-img">
+            <span :class="['status-pill', goods.status === 'ONGOING' ? 'ongoing' : 'stopped']">
+              {{ formatAuctionStatus(goods.status) }}
+            </span>
           </div>
           <div class="mini-card-body">
             <h3 class="mini-card-title">{{ goods.title }}</h3>
-            <p class="mini-card-meta">{{ goods.animeTitle }} · {{ goods.category }}</p>
+            <p class="mini-card-meta">
+              {{ goods.animeTitle }} · {{ goods.category }}
+            </p>
             <p class="mini-card-price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</p>
-            <router-link :to="`/goods/${goods.id}`" class="mini-card-link">자세히 보기</router-link>
+            <div class="card-actions">
+              <router-link :to="`/goods/edit/${goods.id}`" class="btn-outline mini-action" @click.stop>수정</router-link>
+              <button class="btn-outline mini-action danger" @click.stop="handleDelete(goods.id)">삭제</button>
+              <button
+                v-if="goods.status === 'ONGOING'"
+                class="btn-secondary mini-action stop"
+                @click.stop="handleStop(goods.id)"
+              >
+                경매 중지
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -32,11 +54,15 @@
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { useGoodsStore } from '../../stores/goods'
+import { useRouter } from 'vue-router'
 import api from '../../services/api'
 import { getGoodsByIds } from '../../data/mockData'
-import { formatPrice } from '../../utils/format'
+import { formatPrice, formatAuctionStatus } from '../../utils/format'
 
 const authStore = useAuthStore()
+const goodsStore = useGoodsStore()
+const router = useRouter()
 
 const loading = ref(true)
 const registeredGoods = ref([])
@@ -84,6 +110,44 @@ watch(registeredGoods, () => {
 onMounted(() => {
   fetchRegisteredGoods()
 })
+
+function goDetail(id) {
+  router.push(`/goods/${id}`)
+}
+
+function isEnded(status) {
+  return status === 'COMPLETED' || status === 'STOPPED'
+}
+
+async function handleDelete(goodsId) {
+  if (!confirm('이 경매글을 삭제하시겠습니까? 입찰 내역이 있는 경우 삭제가 제한될 수 있습니다.')) {
+    return
+  }
+
+  const result = await goodsStore.deleteGoods(goodsId)
+  if (result.success) {
+    registeredGoods.value = registeredGoods.value.filter(item => item.id !== goodsId)
+    alert('삭제가 완료되었습니다.')
+  } else {
+    alert(result.message || '삭제에 실패했습니다.')
+  }
+}
+
+async function handleStop(goodsId) {
+  if (!confirm('경매를 중지하시겠습니까? 참여자들의 예치금이 환불됩니다.')) {
+    return
+  }
+
+  const result = await goodsStore.stopAuction(goodsId)
+  if (result.success) {
+    registeredGoods.value = registeredGoods.value.map(item =>
+      item.id === goodsId ? { ...item, status: 'STOPPED' } : item
+    )
+    alert('경매가 중지되었습니다.')
+  } else {
+    alert(result.message || '경매 중지에 실패했습니다.')
+  }
+}
 </script>
 
 <style scoped>
@@ -101,7 +165,7 @@ onMounted(() => {
 
 .mini-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 18px;
 }
 
@@ -112,11 +176,19 @@ onMounted(() => {
   border-radius: 20px;
   background: white;
   box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: var(--transition);
+  flex-direction: column;
+}
+
+.mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .mini-card-thumb {
-  width: 70px;
-  height: 70px;
+  width: 100%;
+  aspect-ratio: 4/2;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
@@ -126,6 +198,16 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: var(--transition);
+}
+
+.mini-card-thumb.faded img {
+  filter: grayscale(0.8);
+  opacity: 0.7;
+}
+
+.status-under-img {
+  margin-top: 6px;
 }
 
 .mini-card-body {
@@ -135,14 +217,40 @@ onMounted(() => {
 }
 
 .mini-card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .mini-card-meta {
   font-size: 12px;
   color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  background: var(--bg-light);
+  color: var(--primary-red);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-pill.ongoing {
+  color: var(--primary-red);
+}
+
+.status-pill.stopped {
+  color: var(--text-gray);
 }
 
 .mini-card-price {
@@ -155,6 +263,41 @@ onMounted(() => {
   margin-top: auto;
   font-size: 12px;
   color: var(--text-gray);
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.mini-action {
+  padding: 8px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+}
+
+.mini-action.danger {
+  color: var(--primary-red);
+  border-color: var(--primary-red);
+}
+
+.mini-action.stop {
+  background: var(--primary-red);
+  color: white;
+  border: none;
+}
+
+.status-pill {
+  background: var(--bg-light);
+  color: var(--primary-red);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .pagination {

@@ -58,11 +58,7 @@
           <span class="info-value">{{ user?.name || '-' }}</span>
         </div>
         <div class="info-row">
-          <span class="info-label">아이디</span>
-          <span class="info-value">{{ user?.username || '-' }}</span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">이메일</span>
+          <span class="info-label">로그인 이메일</span>
           <span class="info-value">{{ user?.email || '-' }}</span>
         </div>
       </div>

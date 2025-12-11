@@ -27,6 +27,9 @@
         <span v-if="isSelected(anime.id)" class="selected-badge">✓</span>
       </div>
     </div>
+    <div v-else-if="noResults && searchTerm" class="no-results">
+      해당 애니메이션이 존재하지 않습니다.
+    </div>
 
     <div v-if="selectedAnimes.length > 0" class="selected-animes">
       <h4 class="selected-title">선택된 애니메이션 ({{ selectedAnimes.length }}/{{ max }})</h4>
@@ -65,6 +68,7 @@ const emit = defineEmits(['update:modelValue', 'anime-selected'])
 const searchTerm = ref('')
 const searchResults = ref([])
 const selectedAnimes = ref([...props.modelValue])
+const noResults = ref(false)
 
 const mockAnimeResults = [
   {
@@ -104,6 +108,7 @@ function matchesQuery(anime, query) {
 async function executeSearch() {
   if (!searchTerm.value || searchTerm.value.length < 1) {
     searchResults.value = []
+    noResults.value = false
     return
   }
   const query = searchTerm.value.toLowerCase()
@@ -111,13 +116,13 @@ async function executeSearch() {
   if (Array.isArray(results) && results.length) {
     results = results.filter((anime) => matchesQuery(anime, query))
   }
-  if (!results.length) {
+
+  if (!results || !results.length) {
     results = mockAnimeResults.filter((anime) => matchesQuery(anime, query))
   }
-  if (!results.length) {
-    results = mockAnimeResults
-  }
-  searchResults.value = results.slice(0, 10)
+
+  searchResults.value = (results || []).slice(0, 10)
+  noResults.value = searchResults.value.length === 0
 }
 
 function handleSearch() {
@@ -127,6 +132,7 @@ function handleSearch() {
 
   if (!searchTerm.value || searchTerm.value.length < 1) {
     searchResults.value = []
+    noResults.value = false
     return
   }
 
@@ -141,6 +147,7 @@ async function handleEnter() {
   }
 
   if (!searchTerm.value || searchTerm.value.length < 1) {
+    noResults.value = false
     return
   }
 
@@ -263,6 +270,16 @@ watch(() => props.modelValue, (newValue) => {
   color: var(--primary-red);
   font-size: 20px;
   font-weight: 700;
+}
+
+.no-results {
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  background: white;
+  color: var(--text-gray);
+  text-align: center;
+  font-size: 14px;
 }
 
 .selected-animes {

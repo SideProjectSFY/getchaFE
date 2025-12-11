@@ -9,13 +9,13 @@
 
         <form @submit.prevent="handleLogin" class="login-form">
           <div class="form-group">
-            <label for="username">아이디</label>
+            <label for="email">이메일</label>
             <input
-              id="username"
-              v-model="form.username"
-              type="text"
+              id="email"
+              v-model="form.email"
+              type="email"
               required
-              placeholder="아이디를 입력하세요"
+              placeholder="이메일을 입력하세요"
               class="form-input"
             />
           </div>
@@ -60,7 +60,7 @@ const route = useRoute()
 const authStore = useAuthStore()
 
 const form = ref({
-  username: '',
+  email: '',
   password: ''
 })
 

@@ -36,7 +36,7 @@ export function formatAuctionStatus(status) {
   const statusMap = {
     WAITING: '경매 대기',
     ONGOING: '진행 중',
-    COMPLETED: '완료',
+    COMPLETED: '종료',
     STOPPED: '거래 중지'
   }
   return statusMap[status] || status

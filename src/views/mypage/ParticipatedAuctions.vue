@@ -5,15 +5,22 @@
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="participatedGoods.length > 0">
       <div class="mini-cards-grid">
-        <div class="mini-card" v-for="goods in paginatedGoods" :key="goods.id">
-          <div class="mini-card-thumb">
+        <div
+          class="mini-card"
+          v-for="goods in paginatedGoods"
+          :key="goods.id"
+          @click="goDetail(goods.id)"
+        >
+          <div class="mini-card-thumb" :class="{ faded: isEnded(goods.status) }">
             <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
+          </div>
+          <div class="status-under-img">
+            <span class="status-pill" :class="{ end: isEnded(goods.status) }">{{ displayStatus(goods.status) }}</span>
           </div>
           <div class="mini-card-body">
             <h3 class="mini-card-title">{{ goods.title }}</h3>
             <p class="mini-card-meta">{{ goods.animeTitle }} · {{ goods.category }}</p>
             <p class="mini-card-price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</p>
-            <router-link :to="`/goods/${goods.id}`" class="mini-card-link">자세히 보기</router-link>
           </div>
         </div>
       </div>
@@ -31,12 +38,14 @@
 
 <script setup>
 import { ref, onMounted, computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import api from '../../services/api'
 import { getGoodsByIds } from '../../data/mockData'
 import { formatPrice } from '../../utils/format'
 
 const authStore = useAuthStore()
+const router = useRouter()
 
 const loading = ref(true)
 const participatedGoods = ref([])
@@ -84,6 +93,20 @@ watch(participatedGoods, () => {
 onMounted(() => {
   fetchParticipatedGoods()
 })
+
+function goDetail(id) {
+  router.push(`/goods/${id}`)
+}
+
+function isEnded(status) {
+  return status === 'COMPLETED' || status === 'STOPPED'
+}
+
+function displayStatus(status) {
+  if (status === 'COMPLETED') return '종료'
+  if (status === 'STOPPED') return '중지'
+  return '입찰'
+}
 </script>
 
 <style scoped>
@@ -101,7 +124,7 @@ onMounted(() => {
 
 .mini-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
   gap: 18px;
 }
 
@@ -112,11 +135,19 @@ onMounted(() => {
   border-radius: 20px;
   background: white;
   box-shadow: var(--card-shadow);
+  cursor: pointer;
+  transition: var(--transition);
+  flex-direction: column;
+}
+
+.mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--card-shadow-hover);
 }
 
 .mini-card-thumb {
-  width: 70px;
-  height: 70px;
+  width: 100%;
+  aspect-ratio: 4/2;
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
@@ -126,6 +157,16 @@ onMounted(() => {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: var(--transition);
+}
+
+.mini-card-thumb.faded img {
+  filter: grayscale(0.8);
+  opacity: 0.7;
+}
+
+.status-under-img {
+  margin-top: 6px;
 }
 
 .mini-card-body {
@@ -135,14 +176,32 @@ onMounted(() => {
 }
 
 .mini-card-title {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text-dark);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 
 .mini-card-meta {
   font-size: 12px;
   color: var(--text-light);
+}
+
+.status-pill {
+  background: var(--bg-light);
+  color: var(--primary-red);
+  border: 1px solid rgba(230, 57, 70, 0.2);
+  padding: 4px 8px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-pill.end {
+  color: var(--text-gray);
 }
 
 .mini-card-price {

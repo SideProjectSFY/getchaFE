@@ -19,13 +19,6 @@
           >
             삭제
           </button>
-          <button
-            v-if="goods.status === 'ONGOING'"
-            @click="handleStopAuction"
-            class="btn-secondary stop-btn"
-          >
-            거래 중지
-          </button>
         </div>
         <button @click="handleReport" class="btn-outline report-btn">신고</button>
       </div>
@@ -97,6 +90,13 @@
               class="btn-primary bid-btn"
             >
               입찰하기
+            </button>
+            <button
+              v-if="goods.status === 'ONGOING' && isAuthenticated"
+              @click="handleStopAuction"
+              class="btn-secondary stop-btn"
+            >
+              경매 중지
             </button>
             <button
               @click="toggleWishlist"
