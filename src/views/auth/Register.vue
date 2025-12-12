@@ -148,10 +148,12 @@ import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import AnimeSearch from '../../components/AnimeSearch.vue'
+import api from '../../services/api'
 
 const router = useRouter()
 const authStore = useAuthStore()
 
+// 회원가입 폼 데이터
 const form = ref({
   nickname: '',
   name: '',
@@ -163,6 +165,7 @@ const form = ref({
   accountNumber: ''
 })
 
+// UI 상태값
 const loading = ref(false)
 const errorMessage = ref('')
 const emailSent = ref(false)
@@ -180,12 +183,14 @@ const bankOptions = [
   '토스뱅크'
 ]
 
+// 관심 애니 선택 시 프로필 이미지 채우기
 function handleAnimeSelected(anime) {
   if (!profileImage.value && anime.coverImage?.large) {
     profileImage.value = anime.coverImage.large
   }
 }
 
+// 관심 애니 목록이 변하면 첫 번째 이미지로 미리보기 설정
 watch(
   () => form.value.favoriteAnimes,
   (animes) => {
@@ -199,17 +204,18 @@ watch(
   { deep: true, immediate: true }
 )
 
+// 이메일 인증코드 발송 요청
 async function sendEmailVerification() {
   try {
-    // 실제 API 호출로 대체
-    // await api.post('/auth/verify-email', { email: form.value.email })
+    await api.post('/auth/send-code', { email: form.value.email })
     emailSent.value = true
     alert('인증 코드가 이메일로 전송되었습니다.')
   } catch (error) {
-    errorMessage.value = '이메일 인증 전송에 실패했습니다.'
+    errorMessage.value = error.response?.data?.message || '이메일 인증 전송에 실패했습니다.'
   }
 }
 
+// 회원가입 처리
 async function handleRegister() {
   if (!emailVerified.value) {
     errorMessage.value = '이메일 인증을 완료해주세요.'
@@ -241,12 +247,15 @@ async function handleRegister() {
     return
   }
 
+  // 백엔드 DTO(SignUpRequestDto)에 맞춘 페이로드
   const registerData = {
-    ...form.value,
-    username: form.value.email,
-    favoriteCategories: [],
-    accountNumber: sanitizedAccountNumber,
-    profileImage: profileImage.value
+    nickname: form.value.nickname,
+    name: form.value.name,
+    email: form.value.email,
+    password: form.value.password,
+    likedAnimeIds: form.value.favoriteAnimes.map(anime => anime.id),
+    accountNum: sanitizedAccountNumber,
+    accountBank: form.value.accountBank
   }
 
   const result = await authStore.register(registerData)
@@ -260,14 +269,34 @@ async function handleRegister() {
   loading.value = false
 }
 
-// 인증 코드 확인 로직 (간단한 예시)
-const checkVerificationCode = () => {
-  if (form.value.verificationCode && form.value.verificationCode.length >= 6) {
+// 이메일 인증코드 검증 요청
+async function verifyEmailCode() {
+  if (!form.value.verificationCode) {
+    errorMessage.value = '인증 코드를 입력해주세요.'
+    return
+  }
+  try {
+    await api.post('/auth/verify-email', {
+      email: form.value.email,
+      code: form.value.verificationCode
+    })
     emailVerified.value = true
+    alert('이메일 인증이 완료되었습니다.')
+  } catch (error) {
+    emailVerified.value = false
+    errorMessage.value = error.response?.data?.message || '인증 코드가 올바르지 않습니다.'
   }
 }
 
-watch(() => form.value.verificationCode, checkVerificationCode)
+// 코드 입력 시 서버 검증 (길이 4 이상)
+watch(() => form.value.verificationCode, (code) => {
+  // 코드가 입력될 때마다 서버 검증
+  if (code && code.length >= 4) {
+    verifyEmailCode()
+  } else {
+    emailVerified.value = false
+  }
+})
 </script>
 
 <style scoped>

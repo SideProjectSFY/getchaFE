@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api'
-import { categoryImages } from '../data/mockData'
+import { categoryImages } from '../data/categoryImages'
 
 export const useGoodsStore = defineStore('goods', () => {
   const goodsList = ref([])
@@ -26,8 +26,8 @@ export const useGoodsStore = defineStore('goods', () => {
 
   async function fetchGoodsList(filters = {}) {
     try {
-      const response = await api.get('/goods', { params: filters })
-      goodsList.value = response.data
+      const response = await api.get('/goods/list', { params: filters })
+      goodsList.value = response.data?.items || []
       return { success: true }
     } catch (error) {
       return { success: false, message: error.response?.data?.message || '굿즈 목록을 불러오는데 실패했습니다.' }
@@ -36,7 +36,7 @@ export const useGoodsStore = defineStore('goods', () => {
 
   async function fetchGoodsDetail(id) {
     try {
-      const response = await api.get(`/goods/${id}`)
+      const response = await api.get(`/goods`, { params: { goodsId: id } })
       currentGoods.value = response.data
       return { success: true }
     } catch (error) {
@@ -47,15 +47,14 @@ export const useGoodsStore = defineStore('goods', () => {
   async function registerGoods(goodsData) {
     try {
       const formData = new FormData()
-      Object.keys(goodsData).forEach(key => {
-        if (key === 'images' && Array.isArray(goodsData[key])) {
-          goodsData[key].forEach((image, index) => {
-            formData.append(`images`, image)
-          })
-        } else {
-          formData.append(key, goodsData[key])
-        }
-      })
+      const { images, ...goodsRegister } = goodsData
+      formData.append(
+        'goodsRegister',
+        new Blob([JSON.stringify(goodsRegister)], { type: 'application/json' })
+      )
+      if (Array.isArray(images)) {
+        images.forEach(img => formData.append('imageFiles', img))
+      }
 
       const response = await api.post('/goods', formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
@@ -69,17 +68,16 @@ export const useGoodsStore = defineStore('goods', () => {
   async function updateGoods(id, goodsData) {
     try {
       const formData = new FormData()
-      Object.keys(goodsData).forEach(key => {
-        if (key === 'images' && Array.isArray(goodsData[key])) {
-          goodsData[key].forEach((image, index) => {
-            formData.append(`images`, image)
-          })
-        } else {
-          formData.append(key, goodsData[key])
-        }
-      })
+      const { newImages, ...goodsModify } = goodsData
+      formData.append(
+        'goodsModify',
+        new Blob([JSON.stringify({ ...goodsModify, goodsId: id })], { type: 'application/json' })
+      )
+      if (Array.isArray(newImages)) {
+        newImages.forEach(img => formData.append('newImageFiles', img))
+      }
 
-      const response = await api.put(`/goods/${id}`, formData, {
+      const response = await api.put(`/goods`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
       return { success: true, data: response.data }
@@ -90,7 +88,7 @@ export const useGoodsStore = defineStore('goods', () => {
 
   async function deleteGoods(id) {
     try {
-      await api.delete(`/goods/${id}`)
+      await api.delete(`/goods`, { params: { goodsId: id } })
       return { success: true }
     } catch (error) {
       return { success: false, message: error.response?.data?.message || '굿즈 삭제에 실패했습니다.' }
@@ -98,31 +96,15 @@ export const useGoodsStore = defineStore('goods', () => {
   }
 
   async function toggleWishlist(goodsId) {
-    try {
-      const response = await api.post(`/goods/${goodsId}/wishlist`)
-      const isWishlisted = wishlist.value.includes(goodsId)
-      
-      if (isWishlisted) {
-        wishlist.value = wishlist.value.filter(id => id !== goodsId)
-      } else {
-        wishlist.value.push(goodsId)
-      }
-      
-      saveWishlist()
-      return { success: true, isWishlisted: !isWishlisted }
-    } catch (error) {
-      // API 실패 시 목 데이터로 동작
-      const isWishlisted = wishlist.value.includes(goodsId)
-      
-      if (isWishlisted) {
-        wishlist.value = wishlist.value.filter(id => id !== goodsId)
-      } else {
-        wishlist.value.push(goodsId)
-      }
-      
-      saveWishlist()
-      return { success: true, isWishlisted: !isWishlisted }
+    // 백엔드 위시리스트 API 없음: 로컬 스토리지로만 처리
+    const isWishlisted = wishlist.value.includes(goodsId)
+    if (isWishlisted) {
+      wishlist.value = wishlist.value.filter(id => id !== goodsId)
+    } else {
+      wishlist.value.push(goodsId)
     }
+    saveWishlist()
+    return { success: true, isWishlisted: !isWishlisted }
   }
 
   function isWishlisted(goodsId) {
@@ -131,7 +113,7 @@ export const useGoodsStore = defineStore('goods', () => {
 
   async function placeBid(goodsId, bidAmount) {
     try {
-      const response = await api.post(`/goods/${goodsId}/bid`, { bidAmount })
+      const response = await api.post(`/bid`, { goodsId, bidAmount })
       return { success: true, data: response.data }
     } catch (error) {
       return { success: false, message: error.response?.data?.message || '입찰에 실패했습니다.' }
@@ -140,7 +122,7 @@ export const useGoodsStore = defineStore('goods', () => {
 
   async function stopAuction(goodsId) {
     try {
-      const response = await api.post(`/goods/${goodsId}/stop`)
+      const response = await api.put(`/bid/stop-auction`, null, { params: { goodsId } })
       return { success: true, data: response.data }
     } catch (error) {
       return { success: false, message: error.response?.data?.message || '경매 중지에 실패했습니다.' }

@@ -45,7 +45,6 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { formatPrice, formatDate } from '../../utils/format'
 import api from '../../services/api'
 import { useAuthStore } from '../../stores/auth'
-import { mockTransactions } from '../../data/mockData'
 
 const authStore = useAuthStore()
 const loading = ref(true)
@@ -53,24 +52,18 @@ const transactions = ref([])
 const currentPage = ref(1)
 const ITEMS_PER_PAGE = 5
 
-function loadMockTransactions() {
-  const userId = authStore.user?.id
-  const fallback = mockTransactions[userId] || mockTransactions.default || []
-  transactions.value = [...fallback]
-}
-
 async function fetchTransactions() {
   loading.value = true
   try {
     const response = await api.get('/wallet/transactions')
-    if (Array.isArray(response.data) && response.data.length > 0) {
+    if (Array.isArray(response.data)) {
       transactions.value = response.data
     } else {
-      loadMockTransactions()
+      transactions.value = []
     }
   } catch (error) {
     console.error('거래 내역 로딩 실패:', error)
-    loadMockTransactions()
+    transactions.value = []
   }
   loading.value = false
 }

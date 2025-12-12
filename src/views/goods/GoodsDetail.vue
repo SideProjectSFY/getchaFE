@@ -177,7 +177,6 @@ import { useGoodsStore } from '../../stores/goods'
 import { formatPrice, formatTimeRemaining, formatAuctionStatus } from '../../utils/format'
 import CommentList from '../../components/CommentList.vue'
 import api from '../../services/api'
-import { mockGoods } from '../../data/mockData'
 
 const route = useRoute()
 const router = useRouter()
@@ -198,19 +197,12 @@ let timerInterval = null
 async function fetchGoodsDetail() {
   loading.value = true
   const result = await goodsStore.fetchGoodsDetail(route.params.id)
-  
-  // API 실패 시 목 데이터에서 찾기
-  if (!result.success || !goodsStore.currentGoods) {
-    const foundGoods = mockGoods.find(g => g.id === parseInt(route.params.id))
-    if (foundGoods) {
-      goods.value = foundGoods
-      goodsStore.currentGoods = foundGoods
-    } else {
-      loading.value = false
-      return
-    }
-  } else {
+
+  if (result.success && goodsStore.currentGoods) {
     goods.value = goodsStore.currentGoods
+  } else {
+    loading.value = false
+    return
   }
   
   currentImage.value = goods.value.images?.[0]

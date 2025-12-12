@@ -50,7 +50,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
-import { searchTmdbAnime } from '../services/tmdb'
+import api from '../services/api'
 
 const props = defineProps({
   modelValue: {
@@ -65,37 +65,11 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'anime-selected'])
 
+// 입력값, 검색 결과, 선택된 목록
 const searchTerm = ref('')
 const searchResults = ref([])
 const selectedAnimes = ref([...props.modelValue])
 const noResults = ref(false)
-
-const mockAnimeResults = [
-  {
-    id: 10001,
-    title: { romaji: '주술회전', english: '주술회전', native: '주술회전' },
-    coverImage: { large: '/images/images/jujutsu-kaisen-goods.jpg', medium: '/images/images/jujutsu-kaisen-goods.jpg' },
-    description: '주술회전 목데이터'
-  },
-  {
-    id: 10002,
-    title: { romaji: '귀멸의 칼날', english: '귀멸의 칼날', native: '귀멸의 칼날' },
-    coverImage: { large: '/images/images/demon-slayer-goods.jpg', medium: '/images/images/demon-slayer-goods.jpg' },
-    description: '귀멸의 칼날 목데이터'
-  },
-  {
-    id: 10003,
-    title: { romaji: '진격의 거인', english: '진격의 거인', native: '진격의 거인' },
-    coverImage: { large: '/images/images/attack-on-titan-goods.jpg', medium: '/images/images/attack-on-titan-goods.jpg' },
-    description: '진격의 거인 목데이터'
-  },
-  {
-    id: 10004,
-    title: { romaji: '블루 아카이브', english: '블루 아카이브', native: '블루 아카이브' },
-    coverImage: { large: '/images/images/other.jpg', medium: '/images/images/other.jpg' },
-    description: '블루 아카이브 목데이터'
-  }
-]
 
 let searchTimeout = null
 
@@ -105,26 +79,31 @@ function matchesQuery(anime, query) {
   )
 }
 
+// 백엔드에 keyword로 검색 요청
 async function executeSearch() {
-  if (!searchTerm.value || searchTerm.value.length < 1) {
+  const keyword = (searchTerm.value || '').trim()
+  if (!keyword) {
     searchResults.value = []
     noResults.value = false
     return
   }
-  const query = searchTerm.value.toLowerCase()
-  let results = await searchTmdbAnime(searchTerm.value)
-  if (Array.isArray(results) && results.length) {
-    results = results.filter((anime) => matchesQuery(anime, query))
+  try {
+    const res = await api.get('/anime/search', { params: { keyword } })
+    const results = (res.data || []).map((item) => ({
+      id: item.animeId,
+      title: { romaji: item.title, english: item.title, native: item.title },
+      coverImage: { large: item.postUrl, medium: item.postUrl },
+      description: item.title
+    }))
+    searchResults.value = results.slice(0, 10)
+    noResults.value = searchResults.value.length === 0
+  } catch (e) {
+    searchResults.value = []
+    noResults.value = true
   }
-
-  if (!results || !results.length) {
-    results = mockAnimeResults.filter((anime) => matchesQuery(anime, query))
-  }
-
-  searchResults.value = (results || []).slice(0, 10)
-  noResults.value = searchResults.value.length === 0
 }
 
+// 입력 중 debounce 300ms 후 검색
 function handleSearch() {
   if (searchTimeout) {
     clearTimeout(searchTimeout)
@@ -141,6 +120,7 @@ function handleSearch() {
   }, 300)
 }
 
+// 엔터 입력 시 즉시 검색
 async function handleEnter() {
   if (searchTimeout) {
     clearTimeout(searchTimeout)

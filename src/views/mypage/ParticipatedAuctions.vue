@@ -41,7 +41,6 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import api from '../../services/api'
-import { getGoodsByIds } from '../../data/mockData'
 import { formatPrice } from '../../utils/format'
 
 const authStore = useAuthStore()
@@ -52,11 +51,6 @@ const participatedGoods = ref([])
 const currentPage = ref(1)
 const ITEMS_PER_PAGE = 5
 
-function loadMockParticipated() {
-  const ids = authStore.user?.participatedAuctionIds || []
-  participatedGoods.value = getGoodsByIds(ids)
-}
-
 async function fetchParticipatedGoods() {
   loading.value = true
   try {
@@ -64,11 +58,11 @@ async function fetchParticipatedGoods() {
     if (Array.isArray(response.data) && response.data.length > 0) {
       participatedGoods.value = response.data
     } else {
-      loadMockParticipated()
+      participatedGoods.value = []
     }
   } catch (error) {
     console.error('참여 경매 로딩 실패:', error)
-    loadMockParticipated()
+    participatedGoods.value = []
   }
   loading.value = false
 }

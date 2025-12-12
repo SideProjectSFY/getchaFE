@@ -80,7 +80,6 @@ import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
 import GoodsCard from '../components/GoodsCard.vue'
 import api from '../services/api'
-import { mockRecommendedGoods, mockPopularGoods } from '../data/mockData'
 
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
@@ -99,22 +98,20 @@ async function fetchRecommendedGoods() {
   
   try {
     const response = await api.get('/goods/recommended')
-    recommendedGoods.value = response.data
+    recommendedGoods.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
-    // API 실패 시 목 데이터 사용
     console.error('추천 굿즈 로딩 실패:', error)
-    recommendedGoods.value = mockRecommendedGoods
+    recommendedGoods.value = []
   }
 }
 
 async function fetchPopularGoods() {
   try {
     const response = await api.get('/goods/popular')
-    popularGoods.value = response.data
+    popularGoods.value = Array.isArray(response.data) ? response.data : []
   } catch (error) {
-    // API 실패 시 목 데이터 사용
     console.error('인기 굿즈 로딩 실패:', error)
-    popularGoods.value = mockPopularGoods
+    popularGoods.value = []
   }
 }
 
@@ -181,14 +178,6 @@ function handleCarouselClick(direction) {
 onMounted(() => {
   fetchRecommendedGoods()
   fetchPopularGoods()
-  
-  // API가 없을 경우 목 데이터로 초기화
-  if (recommendedGoods.value.length === 0 && isAuthenticated.value) {
-    recommendedGoods.value = mockRecommendedGoods
-  }
-  if (popularGoods.value.length === 0) {
-    popularGoods.value = mockPopularGoods
-  }
 
   nextTick(() => startCarousel())
 })

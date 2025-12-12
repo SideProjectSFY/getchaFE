@@ -1,8 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { initSocket, getSocket, disconnectSocket } from '../services/websocket'
+import { initSocket, disconnectSocket } from '../services/notificationStream'
 import { useAuthStore } from './auth'
-import { getUserById } from '../data/mockUsers'
+import api from '../services/api'
 
 export const useNotificationStore = defineStore('notification', () => {
   const notifications = ref([])
@@ -37,34 +37,36 @@ export const useNotificationStore = defineStore('notification', () => {
       return
     }
 
-    // 실제 API 호출로 대체 가능, 현재는 목 데이터 사용
-    const mockUser = getUserById(userId)
-    if (mockUser?.notifications) {
-      notifications.value = mockUser.notifications.map((notification, index) => ({
+    try {
+      const res = await api.get('/notification')
+      notifications.value = (res.data || []).map((notification, index) => ({
         id: notification.id ?? Date.now() + index,
         ...notification
       }))
-    } else {
+    } catch (e) {
       notifications.value = []
     }
   }
 
   function initWebSocket() {
     const authStore = useAuthStore()
-    if (authStore.token) {
-      const socket = initSocket(authStore.token)
-      
-      socket.on('notification', (data) => {
+    if (!authStore.token) {
+      return
+    }
+
+    // 롱폴링 스트림: 새 알림 목록을 받으면 하나씩 스토어에 추가
+    initSocket(authStore.token, (incomingList) => {
+      incomingList.forEach((data, idx) => {
         addNotification({
-          id: Date.now(),
+          id: data.id ?? Date.now() + idx,
           type: data.type,
           message: data.message,
           goodsId: data.goodsId,
           read: false,
-          createdAt: new Date().toISOString()
+          createdAt: data.createdAt ?? new Date().toISOString()
         })
       })
-    }
+    })
   }
 
   function disconnectWebSocket() {

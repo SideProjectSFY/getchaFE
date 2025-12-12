@@ -57,7 +57,6 @@ import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
 import { useRouter } from 'vue-router'
 import api from '../../services/api'
-import { getGoodsByIds } from '../../data/mockData'
 import { formatPrice, formatAuctionStatus } from '../../utils/format'
 
 const authStore = useAuthStore()
@@ -69,11 +68,6 @@ const registeredGoods = ref([])
 const currentPage = ref(1)
 const ITEMS_PER_PAGE = 5
 
-function loadMockRegistered() {
-  const ids = authStore.user?.registeredAuctionIds || []
-  registeredGoods.value = getGoodsByIds(ids)
-}
-
 async function fetchRegisteredGoods() {
   loading.value = true
   try {
@@ -81,11 +75,11 @@ async function fetchRegisteredGoods() {
     if (Array.isArray(response.data) && response.data.length > 0) {
       registeredGoods.value = response.data
     } else {
-      loadMockRegistered()
+      registeredGoods.value = []
     }
   } catch (error) {
     console.error('등록 경매 로딩 실패:', error)
-    loadMockRegistered()
+    registeredGoods.value = []
   }
   loading.value = false
 }

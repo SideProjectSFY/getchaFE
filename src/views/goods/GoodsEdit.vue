@@ -171,7 +171,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoodsStore } from '../../stores/goods'
-import { mockGoods } from '../../data/mockData'
 import AnimeSearch from '../../components/AnimeSearch.vue'
 
 const route = useRoute()
@@ -222,18 +221,12 @@ async function fetchGoods() {
   loading.value = true
   const result = await goodsStore.fetchGoodsDetail(route.params.id)
 
-  if (!result.success || !goodsStore.currentGoods) {
-    const found = mockGoods.find(g => g.id === Number(route.params.id))
-    if (found) {
-      goods.value = found
-      goodsStore.currentGoods = found
-    } else {
-      errorMessage.value = result.message || '굿즈 정보를 불러오는데 실패했습니다.'
-      loading.value = false
-      return
-    }
-  } else {
+  if (result.success && goodsStore.currentGoods) {
     goods.value = goodsStore.currentGoods
+  } else {
+    errorMessage.value = result.message || '굿즈 정보를 불러오는데 실패했습니다.'
+    loading.value = false
+    return
   }
 
   existingImages.value = [...(goods.value.images || [])]

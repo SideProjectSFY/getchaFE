@@ -38,12 +38,13 @@ import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import api from '../../services/api'
-import { getGoodsByIds, mockWishlistByUser } from '../../data/mockData'
 import { formatPrice } from '../../utils/format'
+import { useGoodsStore } from '../../stores/goods'
 
 const authStore = useAuthStore()
 const router = useRouter()
 
+const goodsStore = useGoodsStore()
 const loading = ref(true)
 const wishlistGoods = ref([])
 const currentPage = ref(1)
@@ -56,19 +57,13 @@ async function fetchWishlist() {
     if (Array.isArray(response.data) && response.data.length > 0) {
       wishlistGoods.value = response.data
     } else {
-      loadMockWishlist()
+      wishlistGoods.value = []
     }
   } catch (error) {
     console.error('찜 목록 로딩 실패:', error)
-    loadMockWishlist()
+    wishlistGoods.value = []
   }
   loading.value = false
-}
-
-function loadMockWishlist() {
-  const userId = authStore.user?.id
-  const mockIds = mockWishlistByUser[userId] || mockWishlistByUser.default || []
-  wishlistGoods.value = getGoodsByIds(mockIds)
 }
 
 const totalPages = computed(() => Math.max(1, Math.ceil(wishlistGoods.value.length / ITEMS_PER_PAGE)))

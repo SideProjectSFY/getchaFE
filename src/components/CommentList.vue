@@ -31,7 +31,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import CommentItem from './CommentItem.vue'
 import api from '../services/api'
-import { getCommentsByGoodsId } from '../data/mockData'
 
 const props = defineProps({
   goodsId: {
@@ -51,9 +50,8 @@ async function fetchComments() {
     const response = await api.get(`/goods/${props.goodsId}/comments`)
     comments.value = response.data
   } catch (error) {
-    // API 실패 시 목 데이터 사용
     console.error('댓글 로딩 실패:', error)
-    comments.value = getCommentsByGoodsId(parseInt(props.goodsId))
+    comments.value = []
   }
 }
 

@@ -74,7 +74,6 @@ import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
 import GoodsCard from '../../components/GoodsCard.vue'
-import { mockGoods } from '../../data/mockData'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -94,43 +93,13 @@ const filters = ref({
 
 async function applyFilters() {
   loading.value = true
-  const result = await goodsStore.fetchGoodsList(filters.value)
-  
-  // API 실패 시 목 데이터 사용
-  if (!result.success || goodsStore.goodsList.length === 0) {
-    let filteredGoods = [...mockGoods]
-    
-    if (filters.value.category && filters.value.category !== 'ALL') {
-      filteredGoods = filteredGoods.filter(g => g.category === filters.value.category)
-    }
-    
-    if (filters.value.status) {
-      filteredGoods = filteredGoods.filter(g => g.status === filters.value.status)
-    }
-    
-    if (filters.value.search) {
-      const searchTerm = filters.value.search.toLowerCase()
-      filteredGoods = filteredGoods.filter(g => 
-        g.title.toLowerCase().includes(searchTerm) ||
-        g.animeTitle.toLowerCase().includes(searchTerm)
-      )
-    }
-    
-    goodsStore.goodsList = filteredGoods
-  }
-  
+  await goodsStore.fetchGoodsList(filters.value)
   loading.value = false
 }
 
 onMounted(async () => {
   loading.value = true
-  const result = await goodsStore.fetchGoodsList(filters.value)
-  
-  // API 실패 시 목 데이터 사용
-  if (!result.success || goodsStore.goodsList.length === 0) {
-    goodsStore.goodsList = mockGoods
-  }
-  
+  await goodsStore.fetchGoodsList(filters.value)
   loading.value = false
 })
 

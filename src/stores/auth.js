@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import api from '../services/api'
-import { validateUserByEmail, getUserById } from '../data/mockUsers'
+// 목데이터 의존 제거: 실제 백엔드만 사용
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -21,22 +21,13 @@ export const useAuthStore = defineStore('auth', () => {
       api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
       return { success: true }
     } catch (error) {
-      // API 실패 시 목 데이터에서 검증
-      const foundUser = validateUserByEmail(credentials.email, credentials.password)
-      if (foundUser) {
-        const { password, ...userWithoutPassword } = foundUser
-        token.value = `mock_token_${foundUser.id}`
-        user.value = userWithoutPassword
-        localStorage.setItem('token', token.value)
-        return { success: true }
-      }
       return { success: false, message: error.response?.data?.message || '로그인에 실패했습니다.' }
     }
   }
 
   async function register(userData) {
     try {
-      const response = await api.post('/auth/register', userData)
+      const response = await api.post('/auth/signup', userData)
       token.value = response.data.token
       user.value = response.data.user
       localStorage.setItem('token', token.value)
@@ -52,20 +43,10 @@ export const useAuthStore = defineStore('auth', () => {
     
     try {
       api.defaults.headers.common['Authorization'] = `Bearer ${token.value}`
-      const response = await api.get('/auth/me')
+      const response = await api.get('/user/me')
       user.value = response.data
       return true
     } catch (error) {
-      // API 실패 시 목 데이터에서 확인
-      if (token.value.startsWith('mock_token_')) {
-        const userId = parseInt(token.value.replace('mock_token_', ''))
-        const foundUser = getUserById(userId)
-        if (foundUser) {
-          const { password, ...userWithoutPassword } = foundUser
-          user.value = userWithoutPassword
-          return true
-        }
-      }
       logout()
       return false
     }
@@ -80,7 +61,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function updateProfile(profileData) {
     try {
-      const response = await api.put('/auth/profile', profileData)
+      const response = await api.put('/user/me', profileData)
       user.value = response.data
       return { success: true }
     } catch (error) {
@@ -90,7 +71,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   async function withdraw() {
     try {
-      await api.delete('/auth/withdraw')
+      await api.delete('/user/me')
       await logout()
       return { success: true }
     } catch (error) {
