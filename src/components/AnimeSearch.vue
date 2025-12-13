@@ -89,7 +89,8 @@ async function executeSearch() {
   }
   try {
     const res = await api.get('/anime/search', { params: { keyword } })
-    const results = (res.data || []).map((item) => ({
+    const payload = res.data?.data || res.data || []
+    const results = (payload || []).map((item) => ({
       id: item.animeId,
       title: { romaji: item.title, english: item.title, native: item.title },
       coverImage: { large: item.postUrl, medium: item.postUrl },

@@ -32,10 +32,10 @@
               <button
                 type="button"
                 @click="sendEmailVerification"
-                :disabled="!form.email || emailSent"
+                :disabled="!form.email || sendingCode"
                 class="btn-outline verify-btn"
               >
-                {{ emailSent ? '인증 완료' : '인증하기' }}
+                {{ emailSent ? '재발송' : '인증하기' }}
               </button>
             </div>
             <input
@@ -170,6 +170,7 @@ const loading = ref(false)
 const errorMessage = ref('')
 const emailSent = ref(false)
 const emailVerified = ref(false)
+const sendingCode = ref(false)
 const profileImage = ref('')
 
 const bankOptions = [
@@ -204,14 +205,21 @@ watch(
   { deep: true, immediate: true }
 )
 
-// 이메일 인증코드 발송 요청
 async function sendEmailVerification() {
+  if (sendingCode.value) return
+  if (!form.value.email) {
+    errorMessage.value = '이메일을 입력해주세요.'
+    return
+  }
+  sendingCode.value = true
   try {
     await api.post('/auth/send-code', { email: form.value.email })
     emailSent.value = true
     alert('인증 코드가 이메일로 전송되었습니다.')
   } catch (error) {
     errorMessage.value = error.response?.data?.message || '이메일 인증 전송에 실패했습니다.'
+  } finally {
+    sendingCode.value = false
   }
 }
 
@@ -255,7 +263,8 @@ async function handleRegister() {
     password: form.value.password,
     likedAnimeIds: form.value.favoriteAnimes.map(anime => anime.id),
     accountNum: sanitizedAccountNumber,
-    accountBank: form.value.accountBank
+    accountBank: form.value.accountBank,
+    profileImage: profileImage.value || (form.value.favoriteAnimes[0]?.coverImage?.large || '')
   }
 
   const result = await authStore.register(registerData)

@@ -39,19 +39,31 @@ async function fetchFavoriteAnimes() {
   loading.value = true
   try {
     const response = await api.get('/auth/favorite-animes')
-    if (Array.isArray(response.data) && response.data.length) {
-      favoriteAnimes.value = response.data
-    } else if (authStore.user?.favoriteAnimes?.length) {
-      favoriteAnimes.value = authStore.user.favoriteAnimes
-    } else {
-      favoriteAnimes.value = []
-    }
+    const payload = response.data?.data || response.data || []
+    favoriteAnimes.value = mapAnimes(payload)
   } catch (error) {
     // API 실패 시 내 정보에 저장된 관심 애니로 대체
-    favoriteAnimes.value = authStore.user?.favoriteAnimes || []
+    favoriteAnimes.value = mapAnimes(authStore.user?.likedAnimes || [])
     console.error('관심 애니메이션 로딩 실패:', error)
   }
   loading.value = false
+}
+
+function mapAnimes(list) {
+  if (!Array.isArray(list)) return []
+  return list.map(anime => ({
+    id: anime.animeId ?? anime.id,
+    title: {
+      romaji: anime.title,
+      english: anime.title,
+      native: anime.title
+    },
+    coverImage: {
+      large: anime.postUrl || anime.posterUrl || anime.poster_url,
+      medium: anime.postUrl || anime.posterUrl || anime.poster_url
+    },
+    genres: anime.genres || []
+  }))
 }
 
 onMounted(() => {

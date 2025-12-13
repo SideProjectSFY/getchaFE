@@ -31,7 +31,7 @@
         <label class="section-label">프로필 이미지</label>
         <div class="profile-image-section">
           <img
-            :src="profileImage || user?.profileImage || '/placeholder.png'"
+            :src="displayProfileImage"
             :alt="form.nickname"
             class="profile-preview-img"
           />
@@ -129,6 +129,9 @@
       <div v-if="errorMessage" class="error-message">
         {{ errorMessage }}
       </div>
+  <div v-if="successMessage" class="success-message">
+    {{ successMessage }}
+  </div>
 
       <div class="form-actions">
         <button
@@ -170,14 +173,30 @@ const user = computed(() => authStore.user)
 
 const loading = ref(false)
 const errorMessage = ref('')
+const successMessage = ref('')
 const profileImage = ref('')
+const initialAnimes = ref([])
+const displayProfileImage = computed(() => {
+  const userFirst = user.value?.likedAnimes?.[0]
+  const userPoster =
+    userFirst?.postUrl ||
+    userFirst?.posterUrl ||
+    userFirst?.poster_url ||
+    user.value?.profileImage
+  return profileImage.value
+    || form.value.favoriteAnimes[0]?.coverImage?.large
+    || form.value.favoriteAnimes[0]?.coverImage?.medium
+    || userPoster
+    || '/placeholder.png'
+})
 
 const form = ref({
   nickname: '',
   favoriteAnimes: [],
   favoriteCategories: [],
   accountBank: '',
-  accountNumber: ''
+  accountNumber: '',
+  profileImage: ''
 })
 
 const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
@@ -193,7 +212,7 @@ const bankOptions = [
 ]
 
 const formattedAccountNumber = computed(() => {
-  const acct = user.value?.accountNumber
+  const acct = user.value?.accountNum || user.value?.accountNumber
   if (!acct) return '-'
   if (acct.includes('-')) return acct
   if (acct.length >= 6) {
@@ -206,7 +225,7 @@ const formattedAccountNumber = computed(() => {
 })
 
 function handleAnimeSelected(anime) {
-  if (!profileImage.value && anime.coverImage?.large) {
+  if (anime.coverImage?.large) {
     profileImage.value = anime.coverImage.large
   }
 }
@@ -225,8 +244,13 @@ watch(
 )
 
 async function handleSubmit() {
-  if (form.value.favoriteAnimes.length !== 3) {
-    errorMessage.value = '관심 애니메이션을 3개 모두 선택해주세요.'
+  const finalAnimes =
+    form.value.favoriteAnimes.length > 0
+      ? form.value.favoriteAnimes
+      : initialAnimes.value
+
+  if (!finalAnimes || finalAnimes.length !== 3) {
+    errorMessage.value = '관심 애니메이션을 3개 모두 선택하거나 기존 3개를 유지해야 합니다.'
     return
   }
 
@@ -251,14 +275,24 @@ async function handleSubmit() {
 
   const profileData = {
     ...form.value,
-    accountNumber: sanitizedAccountNumber,
-    profileImage: profileImage.value
+    accountNum: sanitizedAccountNumber,
+    likedAnimeId1: finalAnimes[0]?.id,
+    likedAnimeId2: finalAnimes[1]?.id,
+    likedAnimeId3: finalAnimes[2]?.id,
+    profileImage:
+      profileImage.value ||
+      finalAnimes[0]?.coverImage?.large ||
+      finalAnimes[0]?.coverImage?.medium ||
+      ''
   }
 
   const result = await authStore.updateProfile(profileData)
 
   if (result.success) {
-    alert('프로필이 수정되었습니다.')
+    successMessage.value = '프로필이 수정되었습니다.'
+    setTimeout(() => {
+      successMessage.value = ''
+    }, 1200)
   } else {
     errorMessage.value = result.message
   }
@@ -285,11 +319,33 @@ watch(
   (newUser) => {
     if (!newUser) return
     form.value.nickname = newUser.nickname || ''
-    form.value.favoriteAnimes = newUser.favoriteAnimes ? [...newUser.favoriteAnimes] : []
+    const mapped = newUser.likedAnimes
+      ? newUser.likedAnimes.map(anime => ({
+          id: anime.animeId,
+          title: {
+            romaji: anime.title,
+            english: anime.title,
+            native: anime.title
+          },
+          coverImage: {
+            large: anime.postUrl || anime.posterUrl || anime.poster_url,
+            medium: anime.postUrl || anime.posterUrl || anime.poster_url
+          }
+        }))
+      : []
+    initialAnimes.value = mapped
+    form.value.favoriteAnimes = mapped
     form.value.favoriteCategories = newUser.favoriteCategories ? [...newUser.favoriteCategories] : []
     form.value.accountBank = newUser.accountBank || ''
-    form.value.accountNumber = newUser.accountNumber || ''
-    profileImage.value = newUser.profileImage || ''
+    form.value.accountNumber = newUser.accountNum || newUser.accountNumber || ''
+    form.value.profileImage = newUser.profileImage || ''
+    profileImage.value = newUser.profileImage
+      || mapped[0]?.coverImage?.large
+      || mapped[0]?.coverImage?.medium
+      || newUser.likedAnimes?.[0]?.postUrl
+      || newUser.likedAnimes?.[0]?.posterUrl
+      || newUser.likedAnimes?.[0]?.poster_url
+      || ''
   },
   { immediate: true }
 )
@@ -514,6 +570,15 @@ watch(
   padding: 12px;
   background: rgba(230, 57, 70, 0.1);
   color: var(--primary-red);
+  border-radius: 8px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.success-message {
+  padding: 12px;
+  background: rgba(0, 184, 94, 0.12);
+  color: #00b85e;
   border-radius: 8px;
   font-size: 14px;
   text-align: center;
