@@ -106,6 +106,14 @@
                   {{ bank }}
                 </option>
               </select>
+              <input
+                v-if="form.accountBank === '직접입력'"
+                v-model="form.customBank"
+                type="text"
+                placeholder="은행명을 직접 입력하세요"
+                class="form-input"
+                required
+              />
             </div>
             <div class="account-field">
               <label for="accountNumber">계좌번호 <span class="required">*</span></label>
@@ -162,7 +170,8 @@ const form = ref({
   verificationCode: '',
   favoriteAnimes: [],
   accountBank: '',
-  accountNumber: ''
+  accountNumber: '',
+  customBank: ''
 })
 
 // UI 상태값
@@ -181,7 +190,8 @@ const bankOptions = [
   '농협은행',
   '기업은행',
   '카카오뱅크',
-  '토스뱅크'
+  '토스뱅크',
+  '직접입력'
 ]
 
 // 관심 애니 선택 시 프로필 이미지 채우기
@@ -240,6 +250,15 @@ async function handleRegister() {
     return
   }
 
+  const bankName = form.value.accountBank === '직접입력'
+    ? form.value.customBank.trim()
+    : form.value.accountBank
+
+  if (!bankName) {
+    errorMessage.value = '계좌은행을 선택하거나 입력해주세요.'
+    return
+  }
+
   if (!form.value.accountNumber.trim()) {
     errorMessage.value = '계좌번호를 입력해주세요.'
     return
@@ -263,7 +282,7 @@ async function handleRegister() {
     password: form.value.password,
     likedAnimeIds: form.value.favoriteAnimes.map(anime => anime.id),
     accountNum: sanitizedAccountNumber,
-    accountBank: form.value.accountBank,
+    accountBank: bankName,
     profileImage: profileImage.value || (form.value.favoriteAnimes[0]?.coverImage?.large || '')
   }
 
