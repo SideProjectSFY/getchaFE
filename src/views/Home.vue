@@ -15,7 +15,7 @@
               ‹
             </button>
             <div class="carousel-track" ref="carouselRef">
-              <div v-for="goods in recommendedGoods" :key="goods.id" class="carousel-card">
+              <div v-for="goods in recommendedGoods" :key="goods.goodsId" class="carousel-card">
                 <GoodsCard :goods="goods" />
               </div>
             </div>
@@ -62,7 +62,7 @@
         <div v-if="popularGoods.length > 0" class="goods-grid">
           <GoodsCard
             v-for="goods in popularGoods"
-            :key="goods.id"
+            :key="goods.goodsId"
             :goods="goods"
           />
         </div>
@@ -80,6 +80,7 @@ import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
 import GoodsCard from '../components/GoodsCard.vue'
 import api from '../services/api'
+import { categoryImages } from '../data/categoryImages'
 
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
@@ -107,16 +108,26 @@ async function fetchRecommendedGoods() {
 
 async function fetchPopularGoods() {
   try {
-    const response = await api.get('/goods/popular')
-    popularGoods.value = Array.isArray(response.data) ? response.data : []
+    const response = await api.get('/goods/hot-goods')
+    
+    // 백엔드 응답 구조 확인 (response.data.data.items 또는 response.data.items 또는 response.data)
+    const responseData = response.data?.data || response.data
+    const items = responseData?.items || (Array.isArray(responseData) ? responseData : [])
+    
+    // 백엔드 데이터를 프론트엔드 형식으로 변환 (transformGoodsItem 사용)
+    const transformedItems = items.map(item => goodsStore.transformGoodsItem(item))
+    
+    // 페이징 처리 없이 최대 6개만 표시
+    popularGoods.value = transformedItems.slice(0, 6)
   } catch (error) {
     console.error('인기 굿즈 로딩 실패:', error)
     popularGoods.value = []
   }
 }
 
+// 카테고리 이미지는 프론트엔드 내부 이미지 사용
 function getCategoryImage(category) {
-  return goodsStore.getCategoryImage(category)
+  return categoryImages[category] || categoryImages['기타']
 }
 
 function scrollCarousel(direction = 1, isManual = false) {
