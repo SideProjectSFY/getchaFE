@@ -4,32 +4,44 @@
     <div v-else-if="goods" class="container">
       <!-- 상단 액션 버튼 -->
       <div class="action-buttons">
-        <div v-if="isOwner" class="owner-actions">
+        <div v-if="checkSeller" class="owner-actions">
           <router-link
-            v-if="goods.status === 'WAITING'"
-            :to="`/goods/edit/${goods.id}`"
+            v-if="isAuthenticated && goods.checkSeller && goods.auctionStatus === 'WAIT'"
+            :to="`/goods/edit/${goods.goodsId}`"
             class="btn-outline"
           >
             수정
           </router-link>
           <button
-            v-if="goods.status === 'WAITING' && goods.bidCount === 0"
+            v-if="isAuthenticated && goods.checkSeller && goods.auctionStatus !== 'PROCEEDING'"
             @click="handleDelete"
             class="btn-outline delete-btn"
           >
             삭제
           </button>
         </div>
-        <button @click="handleReport" class="btn-outline report-btn">신고</button>
+        <button 
+          v-if="isAuthenticated && !goods.checkSeller"
+          @click="handleReport" 
+          class="btn-outline report-btn"
+        >
+          신고
+        </button>
       </div>
 
       <div class="detail-content">
         <!-- 이미지 갤러리 -->
         <div class="image-gallery">
-          <div class="main-image" :class="{ completed: goods.status === 'COMPLETED' }">
+          <div class="main-image" :class="{ completed: goods.auctionStatus === 'COMPLETED' || goods.auctionStatus === 'STOPPED' }">
             <img :src="currentImage || goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
-            <div v-if="goods.status === 'COMPLETED'" class="detail-soldout">
+            <div v-if="goods.auctionStatus === 'COMPLETED'" class="status-badge completed-badge">완료</div>
+            <div v-else-if="goods.auctionStatus === 'PROCEEDING'" class="status-badge ongoing-badge">진행중</div>
+            <div v-else-if="goods.auctionStatus === 'STOPPED'" class="status-badge stopped-badge">종료</div>
+            <div v-if="goods.auctionStatus === 'COMPLETED'" class="detail-soldout">
               <span class="soldout-pill">SOLD OUT</span>
+            </div>
+            <div v-if="goods.auctionStatus === 'STOPPED'" class="detail-soldout">
+              <span class="stopped-pill">STOPPED</span>
             </div>
           </div>
           <div v-if="goods.images && goods.images.length > 1" class="thumbnail-list">
@@ -39,7 +51,7 @@
               :src="image"
               :alt="`${goods.title} ${index + 1}`"
               @click="currentImage = image"
-              :class="{ active: currentImage === image || (!currentImage && index === 0), completed: goods.status === 'COMPLETED' }"
+              :class="{ active: currentImage === image || (!currentImage && index === 0), completed: goods.auctionStatus === 'COMPLETED' || goods.auctionStatus === 'STOPPED' }"
               class="thumbnail"
             />
           </div>
@@ -50,15 +62,22 @@
           <div class="goods-header">
             <h1 class="goods-title">{{ goods.title }}</h1>
             <div class="goods-meta">
-              <span class="seller">판매자: {{ goods.sellerNickname }}</span>
-              <button @click="handleReportUser" class="report-user-btn">신고</button>
+              <div class="seller-info">
+                <img 
+                  v-if="goods.sellerProfileFilePath" 
+                  :src="getImageUrl(goods.sellerProfileFilePath)" 
+                  :alt="goods.sellerNickName"
+                  class="seller-profile-image"
+                />
+                <span class="seller-name">{{ goods.sellerNickName }}</span>
+                <button @click="handleReportUser" class="report-user-btn">신고</button>
+              </div>
+              <div class="meta-right">
+                <span :class="['status-badge', `status-${goods.auctionStatus.toLowerCase()}`]">
+                  {{ formatAuctionStatus(goods.auctionStatus) }}
+                </span>
+              </div>
             </div>
-          </div>
-
-          <div class="status-badge-wrapper">
-            <span :class="['status-badge', `status-${goods.status.toLowerCase()}`]">
-              {{ formatAuctionStatus(goods.status) }}
-            </span>
           </div>
 
           <div class="auction-info">
@@ -67,13 +86,13 @@
                 <span class="price-label">시작가</span>
                 <span class="price-value">{{ formatPrice(goods.startPrice) }}</span>
               </div>
-              <div class="price-item">
+              <div v-if="!(goods.currentBidAmount === null && goods.auctionStatus === 'WAIT')" class="price-item">
                 <span class="price-label">현재 입찰가</span>
-                <span class="price-value highlight">{{ formatPrice(goods.currentBid || goods.startPrice) }}</span>
+                <span class="price-value highlight">{{ formatPrice(goods.currentBidAmount || goods.startPrice) }}</span>
               </div>
-              <div v-if="goods.maxPrice" class="price-item">
+              <div v-if="goods.instantBuyPrice" class="price-item">
                 <span class="price-label">즉시구매가</span>
-                <span class="price-value">{{ formatPrice(goods.maxPrice) }}</span>
+                <span class="price-value">{{ formatPrice(goods.instantBuyPrice) }}</span>
               </div>
             </div>
 
@@ -85,14 +104,14 @@
 
           <div class="action-section">
             <button
-              v-if="goods.status === 'ONGOING' && !isOwner"
+              v-if="!goods.checkSeller && (goods.auctionStatus === 'PROCEEDING' || goods.auctionStatus === 'WAIT') && isAuthenticated"
               @click="handleBid"
               class="btn-primary bid-btn"
             >
               입찰하기
             </button>
             <button
-              v-if="goods.status === 'ONGOING' && isAuthenticated"
+              v-if="goods.auctionStatus === 'PROCEEDING' && isAuthenticated && goods.checkSeller"
               @click="handleStopAuction"
               class="btn-secondary stop-btn"
             >
@@ -146,10 +165,20 @@
                 v-for="(bidder, index) in goods.bidders"
                 :key="bidder.id"
                 class="bidder-item"
-                :class="{ winner: index === 0 }"
+                :class="{ winner: bidder.highest }"
               >
-                <span class="bidder-rank">{{ index + 1 }}위</span>
-                <span class="bidder-name">{{ bidder.nickname }}</span>
+                <div class="bidder-left">
+                  <span class="bidder-rank">{{ bidder.rank || (index + 1) }}위</span>
+                  <div class="user-info">
+                    <img 
+                      v-if="bidder.profileFilePath" 
+                      :src="getImageUrl(bidder.profileFilePath)" 
+                      :alt="bidder.nickname"
+                      class="profile-image"
+                    />
+                    <span class="bidder-name">{{ bidder.nickname }}</span>
+                  </div>
+                </div>
                 <span class="bidder-price">{{ formatPrice(bidder.bidAmount) }}</span>
               </div>
             </div>
@@ -160,7 +189,7 @@
       <!-- 댓글 섹션 -->
       <div class="comments-section">
         <h3 class="section-title">댓글</h3>
-        <CommentList :goods-id="goods.id" />
+        <CommentList :goods-id="goods.goodsId" :seller-id="goods.sellerId" />
       </div>
     </div>
     <div v-else class="error-state">
@@ -170,13 +199,15 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
-import { formatPrice, formatTimeRemaining, formatAuctionStatus } from '../../utils/format'
+import { formatPrice, formatTimeRemaining, formatAuctionStatus} from '../../utils/format'
+import { getImageUrl } from '../../utils/image'
 import CommentList from '../../components/CommentList.vue'
 import api from '../../services/api'
+import { useTimeRemaining } from '../../composables/useTimeRemaining'
 
 const route = useRoute()
 const router = useRouter()
@@ -186,37 +217,42 @@ const goodsStore = useGoodsStore()
 const loading = ref(true)
 const goods = ref(null)
 const currentImage = ref(null)
-const timeRemaining = ref(0)
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const isOwner = computed(() => goods.value && authStore.user && goods.value.sellerId === authStore.user.id)
-const isWishlisted = computed(() => goods.value ? goodsStore.isWishlisted(goods.value.id) : false)
+const isOwner = computed(() => goods.value?.checkSeller || false)
+const isWishlisted = computed(() => goods.value?.checkWish || false)
 
-let timerInterval = null
+// 실시간으로 계산된 남은 시간 (composable 사용)
+const { timeRemaining, startTimer } = useTimeRemaining({
+  auctionEndAt: computed(() => goods.value?.auctionEndAt),
+  auctionStatus: computed(() => goods.value?.auctionStatus)
+})
 
 async function fetchGoodsDetail() {
   loading.value = true
-  const result = await goodsStore.fetchGoodsDetail(route.params.id)
+  const result = await goodsStore.fetchGoodsDetail(route.query.goodsId)
+
+  // 403 에러 발생 시 (로그인 필요)
+  if (result.requiresAuth) {
+    loading.value = false
+    alert(result.message || '로그인이 필요합니다. 로그인 후 다시 시도해주세요.')
+    router.push({ 
+      name: 'Login', 
+      query: { redirect: route.fullPath } 
+    })
+    return
+  }
 
   if (result.success && goodsStore.currentGoods) {
     goods.value = goodsStore.currentGoods
+    currentImage.value = goods.value.images?.[0]
+    
+    // goods가 업데이트된 후 타이머 재시작
+    startTimer()
   } else {
     loading.value = false
     return
   }
-  
-  currentImage.value = goods.value.images?.[0]
-  timeRemaining.value = goods.value.timeRemaining || 0
-  
-  // 타이머 시작
-  if (timerInterval) clearInterval(timerInterval)
-  timerInterval = setInterval(() => {
-    if (timeRemaining.value > 0) {
-      timeRemaining.value--
-    } else {
-      clearInterval(timerInterval)
-    }
-  }, 1000)
   
   loading.value = false
 }
@@ -237,7 +273,7 @@ async function handleBid() {
     return
   }
 
-  if (amount <= (goods.value.currentBid || goods.value.startPrice)) {
+  if (amount <= (goods.value.currentBidAmount || goods.value.startPrice)) {
     alert('현재 입찰가보다 높은 금액을 입력해주세요.')
     return
   }
@@ -251,7 +287,7 @@ async function handleBid() {
     return
   }
 
-  const result = await goodsStore.placeBid(goods.value.id, amount)
+  const result = await goodsStore.placeBid(goods.value.goodsId, amount)
   if (result.success) {
     alert('입찰이 완료되었습니다.')
     await fetchGoodsDetail()
@@ -267,13 +303,25 @@ async function toggleWishlist() {
     return
   }
 
-  await goodsStore.toggleWishlist(goods.value.id)
+  // 현재 checkWish 상태를 전달하여 올바른 요청(POST/DELETE)이 가도록 함
+  const result = await goodsStore.toggleWishlist(goods.value.goodsId, goods.value.checkWish)
+  
+  if (result.success) {
+    // API 응답의 checkWish 값으로 상태 업데이트
+    if (goods.value) {
+      goods.value.checkWish = result.checkWish
+    }
+    // 상세 정보 다시 불러오기 (최신 상태 반영)
+    await fetchGoodsDetail()
+  } else {
+    alert(result.message || '찜하기 처리에 실패했습니다.')
+  }
 }
 
 async function handleDelete() {
   if (!confirm('정말 삭제하시겠습니까?')) return
 
-  const result = await goodsStore.deleteGoods(goods.value.id)
+  const result = await goodsStore.deleteGoods(goods.value.goodsId)
   if (result.success) {
     alert('삭제되었습니다.')
     router.push('/goods')
@@ -285,7 +333,7 @@ async function handleDelete() {
 async function handleStopAuction() {
   if (!confirm('경매를 중지하시겠습니까? 참여자들에게 예치금이 환원됩니다.')) return
 
-  const result = await goodsStore.stopAuction(goods.value.id)
+  const result = await goodsStore.stopAuction(goods.value.goodsId)
   if (result.success) {
     alert('경매가 중지되었습니다.')
     await fetchGoodsDetail()
@@ -304,10 +352,6 @@ function handleReportUser() {
 
 onMounted(() => {
   fetchGoodsDetail()
-})
-
-onUnmounted(() => {
-  if (timerInterval) clearInterval(timerInterval)
 })
 </script>
 
@@ -363,26 +407,58 @@ onUnmounted(() => {
   filter: grayscale(0.75) brightness(0.8);
 }
 
+.status-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+  z-index: 2;
+}
+
+.completed-badge {
+  background: var(--text-gray);
+}
+
+.ongoing-badge {
+  background: var(--primary-red);
+}
+
+.stopped-badge {
+  background: #6c757d;
+}
+
 .detail-soldout {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(0, 0, 0, 0.25);
   pointer-events: none;
+  z-index: 1;
 }
 
-.soldout-pill {
-  background: rgba(20, 20, 20, 0.8);
-  color: #fff;
-  padding: 12px 32px;
+.soldout-pill, .stopped-pill {
+  color: white;
+  padding: 12px 28px;
   border-radius: 999px;
   font-size: 18px;
   font-weight: 800;
   letter-spacing: 2px;
   text-transform: uppercase;
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
+.soldout-pill {
+  background: rgba(248, 0, 45, 0.75);
+  box-shadow: 0 10px 30px rgba(248, 0, 45, 0.35);
+}
+
+.stopped-pill {
+  background: rgba(148, 140, 142, 0.75);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
 .thumbnail-list {
@@ -433,12 +509,39 @@ onUnmounted(() => {
 .goods-meta {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
 }
 
-.seller {
+.meta-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 공통 사용자 정보 스타일 */
+.user-info,
+.seller-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 공통 프로필 이미지 스타일 */
+.profile-image,
+.seller-profile-image {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.seller-name {
   font-size: 16px;
   color: var(--text-gray);
+  font-weight: 500;
 }
 
 .report-user-btn {
@@ -450,10 +553,6 @@ onUnmounted(() => {
   text-decoration: underline;
 }
 
-.status-badge-wrapper {
-  margin-top: -8px;
-}
-
 .status-badge {
   display: inline-block;
   padding: 8px 16px;
@@ -463,16 +562,22 @@ onUnmounted(() => {
   color: white;
 }
 
+.status-wait,
 .status-waiting {
   background: var(--text-light);
 }
 
+.status-proceeding,
 .status-ongoing {
   background: var(--primary-red);
 }
 
 .status-completed {
   background: var(--text-gray);
+}
+
+.status-stopped {
+  background: #6c757d;
 }
 
 .auction-info {
@@ -656,6 +761,7 @@ onUnmounted(() => {
   padding: 16px;
   background: var(--bg-light);
   border-radius: 8px;
+  justify-content: space-between;
 }
 
 .bidder-item.winner {
@@ -663,20 +769,31 @@ onUnmounted(() => {
   border: 2px solid var(--primary-red);
 }
 
+.bidder-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex: 1;
+}
+
 .bidder-rank {
   font-weight: 700;
   color: var(--primary-red);
   min-width: 40px;
+  font-size: 16px;
 }
 
 .bidder-name {
-  flex: 1;
   font-weight: 500;
+  color: var(--text-dark);
+  font-size: 16px;
 }
 
 .bidder-price {
   font-weight: 700;
   color: var(--primary-red);
+  margin-left: auto;
+  font-size: 18px;
 }
 
 .comments-section {

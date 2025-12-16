@@ -13,9 +13,10 @@
     <div v-if="comments.length > 0" class="comments">
       <CommentItem
         v-for="comment in comments"
-        :key="comment.id"
+        :key="comment.commentId"
         :comment="comment"
         :goods-id="goodsId"
+        :seller-id="sellerId"
         @reply="handleReply"
         @delete="handleDelete"
       />
@@ -36,6 +37,10 @@ const props = defineProps({
   goodsId: {
     type: [String, Number],
     required: true
+  },
+  sellerId: {
+    type: [String, Number],
+    default: null
   }
 })
 
@@ -47,8 +52,8 @@ const newComment = ref('')
 
 async function fetchComments() {
   try {
-    const response = await api.get(`/goods/${props.goodsId}/comments`)
-    comments.value = response.data
+    const response = await api.get(`/comment?goodsId=${props.goodsId}`)
+    comments.value = response.data.data || []
   } catch (error) {
     console.error('댓글 로딩 실패:', error)
     comments.value = []
@@ -59,13 +64,23 @@ async function submitComment() {
   if (!newComment.value.trim()) return
 
   try {
-    const response = await api.post(`/goods/${props.goodsId}/comments`, {
+    const response = await api.post('/comment', {
+      goodsId: props.goodsId,
       content: newComment.value
     })
-    comments.value.push(response.data)
+    // 백엔드 응답 구조: { status, message, data: { commentId, parentId } }
+    const responseData = response.data.data || response.data
+    // 댓글 목록 새로고침하여 전체 댓글 구조 유지
+    await fetchComments()
     newComment.value = ''
   } catch (error) {
-    alert('댓글 작성에 실패했습니다.')
+    if (error.response?.status === 404) {
+      alert('존재하지 않는 굿즈 글입니다.')
+    } else if (error.response?.status === 500) {
+      alert('댓글 등록에 실패하였습니다.')
+    } else {
+      alert('댓글 작성에 실패했습니다.')
+    }
   }
 }
 
@@ -74,8 +89,9 @@ function handleReply(parentId, content) {
   fetchComments()
 }
 
-function handleDelete(commentId) {
-  comments.value = comments.value.filter(c => c.id !== commentId)
+async function handleDelete(commentId) {
+  // 삭제 후 댓글 목록 새로고침 (soft delete, hard delete 상태 반영)
+  await fetchComments()
 }
 
 onMounted(() => {

@@ -8,16 +8,20 @@
         <div
           class="mini-card"
           v-for="goods in paginatedGoods"
-          :key="goods.id"
-          @click="goDetail(goods.id)"
+          :key="goods.goodsId"
+          @click="goDetail(goods.goodsId)"
         >
           <div class="mini-card-thumb">
-            <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
+            <img :src="getImageUrl(goods.mainFilePath)" :alt="goods.title" />
+            <div v-if="goods.auctionStatus === 'COMPLETED'" class="status-badge completed-badge">완료</div>
+            <div v-else-if="goods.auctionStatus === 'PROCEEDING'" class="status-badge ongoing-badge">진행중</div>
+            <div v-else-if="goods.auctionStatus === 'STOPPED'" class="status-badge stopped-badge">종료</div>
+            <div v-else-if="goods.auctionStatus === 'WAIT'" class="status-badge wait-badge">대기</div>
           </div>
           <div class="mini-card-body">
             <h3 class="mini-card-title">{{ goods.title }}</h3>
-            <p class="mini-card-meta">{{ goods.animeTitle }} · {{ goods.category }}</p>
-            <p class="mini-card-price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</p>
+            <p class="mini-card-meta">{{ goods.animeTitle }} · {{ formatCategory(goods.category) }}</p>
+            <p class="mini-card-price">{{ formatPrice(getDisplayPrice(goods)) }}</p>
           </div>
         </div>
       </div>
@@ -37,9 +41,10 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import api from '../../services/api'
-import { formatPrice } from '../../utils/format'
 import { useGoodsStore } from '../../stores/goods'
+import { usePagination } from '../../composables/usePagination'
+import { formatPrice, formatCategory, getDisplayPrice, formatAuctionStatus } from '../../utils/format'
+import { getImageUrl } from '../../utils/image'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -47,48 +52,32 @@ const router = useRouter()
 const goodsStore = useGoodsStore()
 const loading = ref(true)
 const wishlistGoods = ref([])
-const currentPage = ref(1)
-const ITEMS_PER_PAGE = 5
+const ITEMS_PER_PAGE = 6
+
+// 페이징 로직을 composable로 추출
+const { currentPage, totalPages, paginatedItems: paginatedGoods, changePage } = usePagination(ITEMS_PER_PAGE, wishlistGoods)
 
 async function fetchWishlist() {
   loading.value = true
   try {
-    const response = await api.get('/goods/wishlist')
-    if (Array.isArray(response.data) && response.data.length > 0) {
-      wishlistGoods.value = response.data
-    } else {
-      wishlistGoods.value = []
-    }
+    const result = await goodsStore.fetchWishlist()
+    
+    wishlistGoods.value = result.data || []
   } catch (error) {
     console.error('찜 목록 로딩 실패:', error)
     wishlistGoods.value = []
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
-const totalPages = computed(() => Math.max(1, Math.ceil(wishlistGoods.value.length / ITEMS_PER_PAGE)))
-const paginatedGoods = computed(() => {
-  const start = (currentPage.value - 1) * ITEMS_PER_PAGE
-  return wishlistGoods.value.slice(start, start + ITEMS_PER_PAGE)
-})
-
-function changePage(page) {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
-}
-
-watch(wishlistGoods, () => {
-  if (currentPage.value > totalPages.value) {
-    currentPage.value = totalPages.value
-  }
-})
-
-onMounted(() => {
+onMounted(async () => {
+  // 인증 완료 후 찜 목록 로드
   fetchWishlist()
 })
 
-function goDetail(id) {
-  router.push(`/goods/${id}`)
+function goDetail(goodsId) {
+  router.push({ path: '/goods', query: { goodsId } })
 }
 </script>
 
@@ -133,12 +122,57 @@ function goDetail(id) {
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
 }
 
 .mini-card-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.status-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.completed-badge {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+
+.ongoing-badge {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.stopped-badge {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+}
+
+.wait-badge {
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #ffffff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
 }
 
 .mini-card-body {

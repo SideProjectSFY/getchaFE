@@ -1,7 +1,7 @@
 <template>
-  <router-link :to="`/goods/${goods.id}`" class="goods-card" :class="{ completed: goods.status === 'COMPLETED' }">
+  <router-link :to="{ path: '/goods', query: { goodsId: goods.goodsId } }" class="goods-card" :class="{ completed: goods.auctionStatus === 'COMPLETED' || goods.auctionStatus === 'STOPPED' }">
     <div class="goods-image-wrapper">
-      <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" class="goods-image" />
+      <img :src="getImageUrl(goods.images?.[0] || goods.mainFilePath)" :alt="goods.title" class="goods-image" />
       <div class="goods-overlay">
         <div class="wishlist-btn" @click.prevent="toggleWishlist" :class="{ active: isWishlisted }">
           <span class="heart-icon" :class="{ filled: isWishlisted }">
@@ -14,22 +14,28 @@
           </span>
         </div>
       </div>
-      <div v-if="goods.status === 'COMPLETED'" class="status-badge completed-badge">완료</div>
-      <div v-else-if="goods.status === 'ONGOING'" class="status-badge ongoing-badge">진행중</div>
-      <div v-if="goods.status === 'COMPLETED'" class="soldout-overlay">
+      <div v-if="goods.auctionStatus === 'COMPLETED'" class="status-badge completed-badge">완료</div>
+      <div v-else-if="goods.auctionStatus === 'PROCEEDING'" class="status-badge ongoing-badge">진행중</div>
+      <div v-else-if="goods.auctionStatus === 'STOPPED'" class="status-badge stopped-badge">종료</div>
+      <div v-if="goods.auctionStatus === 'COMPLETED'" class="soldout-overlay">
         <span class="soldout-pill">SOLD OUT</span>
+      </div>
+      <div v-if="goods.auctionStatus === 'STOPPED'" class="soldout-overlay">
+        <span class="stopped-pill">STOPPED</span>
       </div>
     </div>
     
     <div class="goods-info">
-      <h3 class="goods-title">{{ goods.title }}</h3>
-      <p class="goods-seller">판매자: {{ goods.sellerNickname }}</p>
+      <div class="goods-title-row">
+        <h3 class="goods-title">{{ goods.title }}</h3>
+        <span class="goods-seller">{{ goods.sellerNickname }}</span>
+      </div>
       <div class="goods-price">
-        <span class="current-bid">현재 입찰가</span>
-        <span class="price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</span>
+        <span class="current-bid">{{ goods.currentBidAmount ? '현재 입찰가' : '시작가' }}</span>
+        <span class="price">{{ formatPrice(goods.currentBidAmount || goods.startPrice) }}</span>
       </div>
       <div class="goods-meta">
-        <span class="timer">{{ formatTimeRemaining(goods.timeRemaining) }}</span>
+        <span class="timer">{{ formatTimeRemaining(timeRemaining) }}</span>
         <span class="wish-count">찜 {{ goods.wishCount || 0 }}</span>
       </div>
     </div>
@@ -42,6 +48,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
 import { formatPrice, formatTimeRemaining } from '../utils/format'
+import { getImageUrl } from '../utils/image'
+import { useTimeRemaining } from '../composables/useTimeRemaining'
 
 const props = defineProps({
   goods: {
@@ -54,8 +62,14 @@ const router = useRouter()
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
 
-const isWishlisted = computed(() => goodsStore.isWishlisted(props.goods.id))
+const isWishlisted = computed(() => goodsStore.isWishlisted(props.goods.goodsId))
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+// 실시간으로 계산된 남은 시간 (composable 사용)
+const { timeRemaining } = useTimeRemaining({
+  auctionEndAt: computed(() => props.goods.auctionEndAt),
+  auctionStatus: computed(() => props.goods.auctionStatus)
+})
 
 async function toggleWishlist() {
   if (!isAuthenticated.value) {
@@ -64,7 +78,11 @@ async function toggleWishlist() {
     return
   }
   
-  await goodsStore.toggleWishlist(props.goods.id)
+  const result = await goodsStore.toggleWishlist(props.goods.goodsId)
+  
+  if (!result.success) {
+    alert(result.message || '찜하기 처리에 실패했습니다.')
+  }
 }
 </script>
 
@@ -105,8 +123,7 @@ async function toggleWishlist() {
   pointer-events: none;
 }
 
-.soldout-pill {
-  background: rgba(20, 20, 20, 0.75);
+.soldout-pill, .stopped-pill {
   color: white;
   padding: 12px 28px;
   border-radius: 999px;
@@ -114,6 +131,15 @@ async function toggleWishlist() {
   font-weight: 800;
   letter-spacing: 2px;
   text-transform: uppercase;
+}
+
+.soldout-pill {
+  background: rgba(248, 0, 45, 0.75);
+  box-shadow: 0 10px 30px rgba(248, 0, 45, 0.35);
+}
+
+.stopped-pill {
+  background: rgba(148, 140, 142, 0.75);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
 }
 
@@ -235,24 +261,42 @@ async function toggleWishlist() {
   background: var(--primary-red);
 }
 
+.stopped-badge {
+  background: #6c757d;
+}
+
 .goods-info {
   padding: 16px;
+}
+
+.goods-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .goods-title {
   font-size: 16px;
   font-weight: 600;
   color: var(--text-dark);
-  margin-bottom: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
 
 .goods-seller {
-  font-size: 13px;
-  color: var(--text-light);
-  margin-bottom: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #856404;
+  background: #fff3cd;
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(133, 100, 4, 0.15);
 }
 
 .goods-price {

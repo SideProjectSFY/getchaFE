@@ -13,11 +13,12 @@
         <div class="filters-grid">
           <div class="filter-group filter-compact">
             <label>상태</label>
-            <select v-model="filters.status" class="filter-select">
+            <select v-model="filters.auctionStatus" class="filter-select">
               <option value="">전체</option>
-              <option value="WAITING">대기</option>
-              <option value="ONGOING">진행중</option>
+              <option value="WAIT">대기</option>
+              <option value="PROCEEDING">진행중</option>
               <option value="COMPLETED">완료</option>
+              <option value="STOPPED">종료</option>
             </select>
           </div>
 
@@ -25,14 +26,15 @@
             <label>카테고리</label>
             <select v-model="filters.category" class="filter-select">
               <option value="">전체</option>
-              <option v-for="cat in categories" :key="cat" :value="cat">{{ cat }}</option>
+              <option v-for="option in categoryOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
             </select>
           </div>
 
           <div class="filter-group filter-compact">
             <label>정렬</label>
-            <select v-model="filters.sortBy" class="filter-select">
-              <option value="date">날짜순</option>
+            <select v-model="filters.sort" class="filter-select">
+              <option value="createdAt">최신순(default)</option>
+              <option value="auctionEndAt">종료 임박순</option>
               <option value="price">가격순</option>
               <option value="wish">찜순</option>
             </select>
@@ -41,7 +43,7 @@
           <div class="filter-group filter-search">
             <label>검색</label>
             <input
-              v-model="filters.search"
+              v-model="filters.searchName"
               type="text"
               placeholder="애니메이션 제목, 굿즈명 검색..."
               class="filter-input"
@@ -49,7 +51,7 @@
           </div>
         </div>
 
-        <button @click="applyFilters" class="filter-btn">필터 적용</button>
+        <button @click="applyFilters(1, false)" class="filter-btn">필터 적용</button>
       </div>
 
       <!-- 굿즈 그리드 -->
@@ -57,19 +59,27 @@
       <div v-else-if="goodsList.length > 0" class="goods-grid">
         <GoodsCard
           v-for="goods in goodsList"
-          :key="goods.id"
+          :key="goods.goodsId"
           :goods="goods"
         />
       </div>
       <div v-else class="empty-state">
         <p>등록된 굿즈가 없습니다.</p>
       </div>
+
+      <!-- 무한 스크롤 로딩 인디케이터 -->
+      <div v-if="isLoadingMore" class="loading-more">
+        <p>더 많은 굿즈를 불러오는 중...</p>
+      </div>
+      <div v-else-if="!hasMore && goodsList.length > 0" class="no-more">
+        <p>모든 굿즈를 불러왔습니다.</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
@@ -80,37 +90,69 @@ const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
+const categoryOptions = computed(() => goodsStore.categoryOptions)
 const goodsList = computed(() => goodsStore.goodsList)
+const pagination = computed(() => goodsStore.pagination)
+const hasMore = computed(() => goodsStore.hasMore)
+const isLoadingMore = computed(() => goodsStore.isLoadingMore)
 
 const loading = ref(false)
+const currentPage = ref(1)
+const pageSize = ref(20)
+
 const filters = ref({
-  status: route.query.status || '',
-  category: route.query.category || '',
-  sortBy: route.query.sortBy || 'date',
-  search: route.query.search || ''
+  auctionStatus: route.query.auctionStatus || '',
+  category: goodsStore.convertCategoryToEnglish(route.query.category || ''),
+  sort: route.query.sort || 'createdAt',
+  searchName: route.query.searchName || ''
 })
 
-async function applyFilters() {
-  loading.value = true
-  await goodsStore.fetchGoodsList(filters.value)
+async function applyFilters(page = 1, append = false) {
+  if (!append) {
+    loading.value = true
+  }
+  currentPage.value = page
+  await goodsStore.fetchGoodsList(filters.value, page, pageSize.value, append)
   loading.value = false
 }
 
+async function loadMore() {
+  if (loading.value || isLoadingMore.value || !hasMore.value) return
+  
+  const nextPage = currentPage.value + 1
+  await applyFilters(nextPage, true)
+}
+
+// 스크롤 감지 함수
+function handleScroll() {
+  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
+  const windowHeight = window.innerHeight
+  const documentHeight = document.documentElement.scrollHeight
+  
+  // 하단 200px 이내에 도달하면 더 불러오기
+  if (scrollTop + windowHeight >= documentHeight - 200) {
+    loadMore()
+  }
+}
+
 onMounted(async () => {
-  loading.value = true
-  await goodsStore.fetchGoodsList(filters.value)
-  loading.value = false
+  await applyFilters(1, false)
+  window.addEventListener('scroll', handleScroll)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('scroll', handleScroll)
 })
 
 watch(() => route.query, (newQuery) => {
   filters.value = {
-    status: newQuery.status || '',
-    category: newQuery.category || '',
-    sortBy: newQuery.sortBy || 'date',
-    search: newQuery.search || ''
+    auctionStatus: newQuery.auctionStatus || '',
+    category: goodsStore.convertCategoryToEnglish(newQuery.category || ''),
+    sort: newQuery.sort || 'createdAt',
+    searchName: newQuery.searchName || ''
   }
-  applyFilters()
+  // 필터 변경 시 첫 페이지부터 다시 시작
+  applyFilters(1, false)
 })
 </script>
 
@@ -220,6 +262,7 @@ watch(() => route.query, (newQuery) => {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 24px;
+  margin-bottom: 40px;
 }
 
 .loading,
@@ -228,6 +271,14 @@ watch(() => route.query, (newQuery) => {
   padding: 60px 20px;
   color: var(--text-light);
   font-size: 16px;
+}
+
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+  font-size: 14px;
 }
 
 @media (max-width: 768px) {
