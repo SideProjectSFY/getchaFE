@@ -3,6 +3,9 @@
     <h1 class="page-title">자산 현황</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
+    <div v-else-if="errorMessage" class="error-state">
+      <p>{{ errorMessage }}</p>
+    </div>
     <div v-else class="wallet-content">
       <div class="wallet-shell">
         <div class="wallet-strap">
@@ -49,24 +52,27 @@
 import { ref, onMounted, computed } from 'vue'
 import { formatPrice } from '../../utils/format'
 import api from '../../services/api'
+import { extractResponseData } from '../../utils/responseApi'
 
 const loading = ref(true)
 const wallet = ref({
   balance: 0,
-  lockedAmount: 0
+  lockedBalance: 0
 })
 const selectedStat = ref('balance')
+const errorMessage = ref('')
 
 const walletTabs = [
   { key: 'balance', label: '잔액' },
-  { key: 'lockedAmount', label: '예치금' },
+  { key: 'lockedBalance', label: '예치금' },
   { key: 'total', label: '총 자산' }
 ]
 
 const displayAmount = computed(() => {
   if (selectedStat.value === 'balance') return wallet.value.balance || 0
-  if (selectedStat.value === 'lockedAmount') return wallet.value.lockedAmount || 0
-  return (wallet.value.balance || 0) + (wallet.value.lockedAmount || 0)
+  if (selectedStat.value === 'lockedBalance') return wallet.value.lockedBalance || 0
+  // 총 자산: balance + lockedBalance
+  return (wallet.value.balance || 0) + (wallet.value.lockedBalance || 0)
 })
 
 const displayLabel = computed(() => {
@@ -76,13 +82,25 @@ const displayLabel = computed(() => {
 
 async function fetchWallet() {
   loading.value = true
+  errorMessage.value = ''
   try {
     const response = await api.get('/wallet')
-    wallet.value = response.data
+    const data = extractResponseData(response, { balance: 0, lockedBalance: 0 })
+    wallet.value = {
+      balance: data.balance || 0,
+      lockedBalance: data.lockedBalance || 0
+    }
   } catch (error) {
     console.error('자산 현황 로딩 실패:', error)
+    const status = error.response?.status
+    if (status === 404) {
+      errorMessage.value = '존재하지 않는 유저입니다. 지갑이 없습니다.'
+    } else {
+      errorMessage.value = '자산 현황을 불러오는데 실패했습니다.'
+    }
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
 
 onMounted(() => {
@@ -257,11 +275,16 @@ onMounted(() => {
   line-height: 1.7;
 }
 
-.loading {
+.loading,
+.error-state {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-light);
   font-size: 16px;
+}
+
+.error-state {
+  color: var(--primary-red);
 }
 </style>
 
