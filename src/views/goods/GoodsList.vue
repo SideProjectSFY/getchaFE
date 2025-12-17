@@ -79,10 +79,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
+import { useScrollPagination } from '../../composables/useScrollPagination'
 import GoodsCard from '../../components/GoodsCard.vue'
 
 const route = useRoute()
@@ -91,13 +92,7 @@ const goodsStore = useGoodsStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const categoryOptions = computed(() => goodsStore.categoryOptions)
-const goodsList = computed(() => goodsStore.goodsList)
-const pagination = computed(() => goodsStore.pagination)
-const hasMore = computed(() => goodsStore.hasMore)
-const isLoadingMore = computed(() => goodsStore.isLoadingMore)
 
-const loading = ref(false)
-const currentPage = ref(1)
 const pageSize = ref(20)
 
 const filters = ref({
@@ -107,41 +102,49 @@ const filters = ref({
   searchName: route.query.searchName || ''
 })
 
-async function applyFilters(page = 1, append = false) {
-  if (!append) {
-    loading.value = true
+// 스크롤 페이징 composable 사용
+const {
+  loading,
+  isLoadingMore,
+  hasMore,
+  items: goodsList,
+  initialize,
+  updateParams
+} = useScrollPagination(
+  async (page, append, params) => {
+    const result = await goodsStore.fetchGoodsList(
+      { ...filters.value, ...params },
+      page,
+      pageSize.value,
+      append
+    )
+    
+    if (result.success) {
+      return {
+        items: goodsStore.goodsList,
+        currentPage: goodsStore.pagination.currentPage,
+        totalPages: goodsStore.pagination.totalPages,
+        totalCount: goodsStore.pagination.totalCount
+      }
+    } else {
+      throw new Error(result.message || '굿즈 목록을 불러오는데 실패했습니다.')
+    }
+  },
+  {
+    initialPage: 1,
+    pageSize: pageSize.value,
+    scrollThreshold: 200,
+    params: {}
   }
-  currentPage.value = page
-  await goodsStore.fetchGoodsList(filters.value, page, pageSize.value, append)
-  loading.value = false
+)
+
+function applyFilters() {
+  updateParams({})
+  initialize()
 }
 
-async function loadMore() {
-  if (loading.value || isLoadingMore.value || !hasMore.value) return
-  
-  const nextPage = currentPage.value + 1
-  await applyFilters(nextPage, true)
-}
-
-// 스크롤 감지 함수
-function handleScroll() {
-  const scrollTop = window.pageYOffset || document.documentElement.scrollTop
-  const windowHeight = window.innerHeight
-  const documentHeight = document.documentElement.scrollHeight
-  
-  // 하단 200px 이내에 도달하면 더 불러오기
-  if (scrollTop + windowHeight >= documentHeight - 200) {
-    loadMore()
-  }
-}
-
-onMounted(async () => {
-  await applyFilters(1, false)
-  window.addEventListener('scroll', handleScroll)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('scroll', handleScroll)
+onMounted(() => {
+  initialize()
 })
 
 watch(() => route.query, (newQuery) => {
@@ -152,7 +155,7 @@ watch(() => route.query, (newQuery) => {
     searchName: newQuery.searchName || ''
   }
   // 필터 변경 시 첫 페이지부터 다시 시작
-  applyFilters(1, false)
+  applyFilters()
 })
 </script>
 
