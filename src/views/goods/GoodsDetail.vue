@@ -86,7 +86,7 @@
                 <span class="price-label">시작가</span>
                 <span class="price-value">{{ formatPrice(goods.startPrice) }}</span>
               </div>
-              <div v-if="!(goods.currentBidAmount === null && goods.auctionStatus === 'WAIT')" class="price-item">
+              <div v-if="!(goods.currentBidAmount === null && (goods.auctionStatus === 'WAIT' || goods.auctionStatus === 'STOPPED'))" class="price-item">
                 <span class="price-label">현재 입찰가</span>
                 <span class="price-value highlight">{{ formatPrice(goods.currentBidAmount || goods.startPrice) }}</span>
               </div>

@@ -26,15 +26,24 @@
     </div>
     
     <div class="goods-info">
-      <div class="goods-title-row">
-        <h3 class="goods-title">{{ goods.title }}</h3>
-        <span class="goods-seller">{{ goods.sellerNickname }}</span>
+      <div class="goods-header">
+        <div class="goods-title-row">
+          <h3 class="goods-title">{{ goods.title }}</h3>
+        </div>
+        <div class="goods-meta-row">
+          <span v-if="goods.category" class="category-badge">{{ formatCategory(goods.category) }}</span>
+          <span v-if="goods.animeTitle" class="anime-title">{{ goods.animeTitle }}</span>
+        </div>
+        <div class="seller-info">
+          <span class="seller-label">판매자</span>
+          <span class="seller-name">{{ goods.sellerNickname }}</span>
+        </div>
       </div>
       <div class="goods-price">
         <span class="current-bid">{{ goods.currentBidAmount ? '현재 입찰가' : '시작가' }}</span>
         <span class="price">{{ formatPrice(goods.currentBidAmount || goods.startPrice) }}</span>
       </div>
-      <div class="goods-meta">
+      <div class="goods-footer">
         <span class="timer">{{ formatTimeRemaining(timeRemaining) }}</span>
         <span class="wish-count">찜 {{ goods.wishCount || 0 }}</span>
       </div>
@@ -47,7 +56,7 @@ import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
-import { formatPrice, formatTimeRemaining } from '../utils/format'
+import { formatPrice, formatTimeRemaining, formatCategory } from '../utils/format'
 import { getImageUrl } from '../utils/image'
 import { useTimeRemaining } from '../composables/useTimeRemaining'
 
@@ -320,12 +329,12 @@ async function toggleWishlist() {
   padding: 16px;
 }
 
-.goods-title-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.goods-header {
   margin-bottom: 12px;
-  flex-wrap: wrap;
+}
+
+.goods-title-row {
+  margin-bottom: 8px;
 }
 
 .goods-title {
@@ -335,19 +344,72 @@ async function toggleWishlist() {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.4;
+  margin-bottom: 6px;
+}
+
+.goods-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.category-badge {
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 4px 10px;
+  border-radius: 12px;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.anime-title {
+  font-size: 12px;
+  color: var(--text-gray);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   flex: 1;
   min-width: 0;
 }
 
-.goods-seller {
+.seller-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
+  color: var(--text-light);
+}
+
+.seller-label {
+  font-weight: 500;
+  color: var(--text-light);
+}
+
+.seller-name {
   font-weight: 600;
-  color: #856404;
-  background: #fff3cd;
-  padding: 4px 10px;
-  border-radius: 12px;
-  white-space: nowrap;
-  box-shadow: 0 2px 4px rgba(133, 100, 4, 0.15);
+  color: var(--text-dark);
+  position: relative;
+  padding-left: 8px;
+}
+
+.seller-name::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--primary-red);
 }
 
 .goods-price {
@@ -368,7 +430,7 @@ async function toggleWishlist() {
   color: var(--primary-red);
 }
 
-.goods-meta {
+.goods-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
