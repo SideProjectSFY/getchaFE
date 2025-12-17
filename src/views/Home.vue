@@ -16,7 +16,7 @@
             </button>
             <div class="carousel-track" ref="carouselRef">
               <div v-for="goods in recommendedGoods" :key="goods.goodsId" class="carousel-card">
-                <GoodsCard :goods="goods" />
+                <GoodsCard :goods="goods" :additional-lists="additionalListsForRecommended" />
               </div>
             </div>
             <button class="carousel-btn next" type="button" @click="handleCarouselClick(1)" aria-label="다음 추천 보기">
@@ -64,6 +64,7 @@
             v-for="goods in popularGoods"
             :key="goods.goodsId"
             :goods="goods"
+            :additional-lists="additionalListsForPopular"
           />
         </div>
         <div v-else class="empty-state">
@@ -78,18 +79,24 @@
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { useGoodsStore } from '../stores/goods'
+import { useWishStore } from '../stores/wish'
 import GoodsCard from '../components/GoodsCard.vue'
 import api from '../services/api'
 import { categoryImages } from '../data/categoryImages'
 
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
+const wishStore = useWishStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const categories = computed(() => goodsStore.categories)
 
 const recommendedGoods = ref([])
 const popularGoods = ref([])
+
+// additionalLists를 computed로 생성하여 Vue 반응성 보장
+const additionalListsForPopular = computed(() => [popularGoods])
+const additionalListsForRecommended = computed(() => [recommendedGoods])
 const carouselRef = ref(null)
 let carouselTimer = null
 let restartTimer = null
@@ -115,6 +122,7 @@ async function fetchPopularGoods() {
     const items = responseData?.items || (Array.isArray(responseData) ? responseData : [])
     
     // 백엔드 데이터를 프론트엔드 형식으로 변환 (transformGoodsItem 사용)
+    // transformGoodsItem은 ...item으로 모든 속성(checkWish 포함)을 그대로 전달
     const transformedItems = items.map(item => goodsStore.transformGoodsItem(item))
     
     // 페이징 처리 없이 최대 6개만 표시

@@ -9,7 +9,6 @@ import { extractArrayResponse } from '../utils/responseApi'
 export const useGoodsStore = defineStore('goods', () => {
   const goodsList = ref([])
   const currentGoods = ref(null)
-  const wishlist = ref(JSON.parse(localStorage.getItem('wishlist') || '[]'))
   
   // 페이징 정보
   const pagination = ref({
@@ -33,11 +32,6 @@ export const useGoodsStore = defineStore('goods', () => {
     '뱃지류',
     '기타'
   ])
-
-  // 찜 목록 저장
-  function saveWishlist() {
-    localStorage.setItem('wishlist', JSON.stringify(wishlist.value))
-  }
 
   // 카테고리 매핑 (한글 -> 영문) - 공통 상수 사용
   const categoryMapping = CATEGORY_MAP
@@ -64,6 +58,7 @@ export const useGoodsStore = defineStore('goods', () => {
   }
 
   // 백엔드 응답 데이터 변환 (images만 배열로 변환, 나머지는 백엔드 변수명 그대로)
+  // checkWish, wishCount 등 모든 속성은 ...item으로 자동 포함됨
   function transformGoodsItem(item) {
     return {
       ...item,
@@ -222,119 +217,16 @@ export const useGoodsStore = defineStore('goods', () => {
     }
   }
 
+  // 찜 관련 기능은 wishStore에서 처리
+  // 이 함수는 wishStore의 toggleWishlist를 호출하고 goodsList/currentGoods를 업데이트하기 위한 래퍼
   async function toggleWishlist(goodsId, currentCheckWish = null) {
-    try {
-      // currentCheckWish가 제공되면 우선 사용, 없으면 로컬 스토리지 확인
-      // currentGoods가 있고 checkWish가 있으면 그것을 사용
-      let isWishlisted = false
-      if (currentCheckWish !== null) {
-        isWishlisted = currentCheckWish
-      } else if (currentGoods.value?.goodsId === goodsId && currentGoods.value?.checkWish !== undefined) {
-        isWishlisted = currentGoods.value.checkWish
-      } else {
-        isWishlisted = wishlist.value.includes(goodsId)
-      }
-      
-      if (isWishlisted) {
-        // 찜 취소 - DELETE 요청
-        const response = await api.delete('/wish', { params: { goodsId } })
-        const responseData = response.data?.data || response.data
-        const checkWish = responseData?.checkWish || false
-        
-        // 로컬 스토리지에서 제거
-        wishlist.value = wishlist.value.filter(id => id !== goodsId)
-        saveWishlist()
-        
-        return { success: true, isWishlisted: checkWish, checkWish }
-      } else {
-        // 찜 등록 - POST 요청
-        const response = await api.post('/wish', null, { params: { goodsId } })
-        const responseData = response.data?.data || response.data
-        const checkWish = responseData?.checkWish || false
-        const wishId = responseData?.wishId
-        
-        // 로컬 스토리지에 추가
-        if (!wishlist.value.includes(goodsId)) {
-          wishlist.value.push(goodsId)
-        }
-        saveWishlist()
-        
-        return { success: true, isWishlisted: checkWish, checkWish, wishId }
-      }
-    } catch (error) {
-      const status = error.response?.status
-      let message = '찜하기 처리에 실패했습니다.'
-      
-      // 에러 처리 시에도 동일한 로직으로 찜 상태 확인
-      let isWishlistedForError = false
-      if (currentCheckWish !== null) {
-        isWishlistedForError = currentCheckWish
-      } else if (currentGoods.value?.goodsId === goodsId && currentGoods.value?.checkWish !== undefined) {
-        isWishlistedForError = currentGoods.value.checkWish
-      } else {
-        isWishlistedForError = wishlist.value.includes(goodsId)
-      }
-      
-      if (isWishlistedForError) {
-        // 찜 취소 시 에러 처리
-        if (status === 404) {
-          message = '존재하지 않는 굿즈입니다.'
-        } else if (status === 500) {
-          message = '찜 취소하는 것에 실패하였습니다.'
-        } else {
-          message = error.response?.data?.message || '찜 취소에 실패했습니다.'
-        }
-      } else {
-        // 찜 등록 시 에러 처리
-        if (status === 403) {
-          message = '본인의 굿즈는 찜할 수 없습니다.'
-        } else if (status === 404) {
-          message = '존재하지 않는 굿즈입니다.'
-        } else if (status === 409) {
-          message = '이미 찜한 굿즈입니다.'
-        } else if (status === 500) {
-          message = '찜 등록에 실패하였습니다.'
-        } else {
-          message = error.response?.data?.message || '찜 등록에 실패했습니다.'
-        }
-      }
-      
-      return { 
-        success: false, 
-        message 
-      }
-    }
-  }
-
-  function isWishlisted(goodsId) {
-    return wishlist.value.includes(goodsId)
-  }
-
-  async function fetchWishlist() {
-    try {
-      const response = await api.get('/user/me/wish')
-      const data = extractArrayResponse(response)
-      return { 
-        success: true, 
-        data 
-      }
-    } catch (error) {
-      // 401 에러는 인증이 필요한 경우 (토큰 만료 또는 유효하지 않음)
-      if (error.response?.status === 401) {
-        return { 
-          success: false, 
-          requiresAuth: true,
-          data: [],
-          message: '로그인이 필요합니다. 로그인 후 다시 시도해주세요.' 
-        }
-      }
-      console.error('찜 목록 로딩 실패:', error)
-      return { 
-        success: false, 
-        data: [],
-        message: error.response?.data?.message || '찜 목록을 불러오는데 실패했습니다.' 
-      }
-    }
+    const { useWishStore } = await import('./wish')
+    const wishStore = useWishStore()
+    
+    return await wishStore.toggleWishlist(goodsId, currentCheckWish, {
+      goodsList,
+      currentGoods
+    })
   }
 
   async function placeBid(goodsId, bidAmount) {
@@ -362,7 +254,6 @@ export const useGoodsStore = defineStore('goods', () => {
   return {
     goodsList,
     currentGoods,
-    wishlist,
     categories,
     categoryOptions,
     pagination,
@@ -377,8 +268,6 @@ export const useGoodsStore = defineStore('goods', () => {
     updateGoods,
     deleteGoods,
     toggleWishlist,
-    isWishlisted,
-    fetchWishlist,
     placeBid,
     stopAuction
   }

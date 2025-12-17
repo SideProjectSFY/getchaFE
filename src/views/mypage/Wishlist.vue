@@ -41,7 +41,7 @@
 import { ref, onMounted, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
-import { useGoodsStore } from '../../stores/goods'
+import { useWishStore } from '../../stores/wish'
 import { usePagination } from '../../composables/usePagination'
 import { formatPrice, formatCategory, getDisplayPrice, formatAuctionStatus } from '../../utils/format'
 import { getImageUrl } from '../../utils/image'
@@ -49,7 +49,7 @@ import { getImageUrl } from '../../utils/image'
 const authStore = useAuthStore()
 const router = useRouter()
 
-const goodsStore = useGoodsStore()
+const wishStore = useWishStore()
 const loading = ref(true)
 const wishlistGoods = ref([])
 const ITEMS_PER_PAGE = 6
@@ -60,7 +60,7 @@ const { currentPage, totalPages, paginatedItems: paginatedGoods, changePage } = 
 async function fetchWishlist() {
   loading.value = true
   try {
-    const result = await goodsStore.fetchWishlist()
+    const result = await wishStore.fetchWishlist()
     
     wishlistGoods.value = result.data || []
   } catch (error) {
