@@ -10,3 +10,4 @@ export const categoryImages = {
   '기타': '/images/images/other.jpg'
 }
 
+

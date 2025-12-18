@@ -6,8 +6,9 @@ const POLL_INTERVAL = 1000 // 1초 간격 재호출
 async function poll(onData) {
   try {
     const res = await api.get('/notification/stream')
-    if (res.status === 200 && Array.isArray(res.data) && res.data.length) {
-      onData(res.data)
+    const payload = res.data?.data || res.data || []
+    if (res.status === 200 && Array.isArray(payload) && payload.length) {
+      onData(payload)
     }
   } catch (e) {
     // 오류 시에도 간격을 유지하며 재시도
@@ -16,21 +17,17 @@ async function poll(onData) {
   }
 }
 
-// 기존 socket 인터페이스를 유지하면서 롱폴링으로 대체
-export function initSocket(_token, onData) {
-  disconnectSocket()
+// 롱폴링 시작
+export function initNotificationPolling(_token, onData) {
+  stopNotificationPolling()
   poll(onData)
   return null
 }
 
-export function disconnectSocket() {
+export function stopNotificationPolling() {
   if (pollTimer) {
     clearTimeout(pollTimer)
     pollTimer = null
   }
-}
-
-export function getSocket() {
-  return null
 }
 

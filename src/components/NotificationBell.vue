@@ -49,24 +49,29 @@ const unreadCount = computed(() => notificationStore.unreadCount)
 
 function toggleNotifications() {
   showNotifications.value = !showNotifications.value
+  if (showNotifications.value) {
+    notificationStore.fetchNotifications()
+  }
 }
 
 function handleNotificationClick(notification) {
   if (!notification.read) {
-    notificationStore.markAsRead(notification.id)
+    notificationStore.markAsReadServer(notification.id)
   }
-  
-  // 알림 타입에 따라 라우팅
-  if (notification.type === 'AUCTION_ENDING' || notification.type === 'BID_UPDATE') {
-    // 굿즈 상세 페이지로 이동
-    window.location.href = `/goods/${notification.goodsId}`
+
+  const targetLink =
+    notification.link ||
+    (notification.goodsId ? `/goods/${notification.goodsId}` : null)
+
+  if (targetLink) {
+    window.location.href = targetLink
   }
-  
+
   showNotifications.value = false
 }
 
 function markAllAsRead() {
-  notificationStore.markAllAsRead()
+  notificationStore.markAllAsReadServer()
 }
 
 function formatTime(dateString) {
