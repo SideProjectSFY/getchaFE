@@ -4,7 +4,7 @@
     <div v-else-if="goods" class="container">
       <!-- 상단 액션 버튼 -->
       <div class="action-buttons">
-        <div v-if="checkSeller" class="owner-actions">
+        <div v-if="isOwner" class="owner-actions">
           <router-link
             v-if="isAuthenticated && goods.checkSeller && goods.auctionStatus === 'WAIT'"
             :to="`/goods/edit/${goods.goodsId}`"
@@ -208,6 +208,7 @@ import { getImageUrl } from '../../utils/image'
 import CommentList from '../../components/CommentList.vue'
 import api from '../../services/api'
 import { useTimeRemaining } from '../../composables/useTimeRemaining'
+import { submitBid } from '../../services/bid'
 
 const route = useRoute()
 const router = useRouter()
@@ -273,26 +274,23 @@ async function handleBid() {
     return
   }
 
-  if (amount <= (goods.value.currentBidAmount || goods.value.startPrice)) {
-    alert('현재 입찰가보다 높은 금액을 입력해주세요.')
-    return
-  }
-
-  if (amount > 5000000) {
-    alert('거래 제한 금액(500만 골드)을 초과할 수 없습니다.')
-    return
-  }
-
+  // 입찰 확인
   if (!confirm('입찰 후 취소할 수 없습니다. 정말 입찰하시겠습니까?')) {
     return
   }
 
-  const result = await goodsStore.placeBid(goods.value.goodsId, amount)
+  // bid.js의 submitBid 함수를 사용하여 입찰 처리 (유효성 검사 및 API 호출 포함)
+  const result = await submitBid(goods.value.goodsId, amount, {
+    currentBidAmount: goods.value.currentBidAmount,
+    startPrice: goods.value.startPrice,
+    auctionStatus: goods.value.auctionStatus
+  })
+
   if (result.success) {
     alert('입찰이 완료되었습니다.')
     await fetchGoodsDetail()
   } else {
-    alert(result.message)
+    alert(result.message || '입찰에 실패했습니다.')
   }
 }
 
