@@ -35,6 +35,54 @@
         </div>
       </div>
 
+      <div class="wallet-actions">
+        <button class="btn-primary open-charge-btn" @click="toggleCharge">
+          골드 충전하기
+        </button>
+      </div>
+
+      <div v-if="showCharge" class="charge-modal-backdrop" @click.self="toggleCharge">
+        <div class="charge-modal">
+          <div class="charge-header">
+            <h3>골드 충전</h3>
+            <button class="close-btn" @click="toggleCharge">×</button>
+          </div>
+          <p class="info-text">10,000 골드 단위로만 충전할 수 있습니다.</p>
+          <div class="amount-buttons">
+            <button
+              v-for="opt in amountOptions"
+              :key="opt"
+              type="button"
+              class="amount-btn"
+              :class="{ active: selectedAmount === opt }"
+              @click="selectAmount(opt)"
+            >
+              {{ formatPrice(opt) }}
+            </button>
+          </div>
+          <div class="custom-input">
+            <label for="customAmount">직접 입력 (10,000 단위)</label>
+            <input
+              id="customAmount"
+              type="number"
+              min="10000"
+              step="10000"
+              v-model.number="customAmount"
+              placeholder="예: 10000"
+            />
+          </div>
+          <button
+            class="btn-primary charge-btn"
+            :disabled="charging"
+            @click="handleCharge"
+          >
+            {{ charging ? '결제 진행 중...' : '결제하기' }}
+          </button>
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+          <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
+        </div>
+      </div>
+
       <div class="wallet-info">
         <strong>알림</strong>
         <p class="info-text">
@@ -49,6 +97,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { formatPrice } from '../../utils/format'
 import api from '../../services/api'
+import { useAuthStore } from '../../stores/auth'
 
 const loading = ref(true)
 const wallet = ref({
@@ -56,6 +105,14 @@ const wallet = ref({
   lockedAmount: 0
 })
 const selectedStat = ref('balance')
+const amountOptions = [10000, 30000, 100000, 200000]
+const selectedAmount = ref(10000)
+const customAmount = ref(null)
+const charging = ref(false)
+const errorMessage = ref('')
+const successMessage = ref('')
+const authStore = useAuthStore()
+const showCharge = ref(false)
 
 const walletTabs = [
   { key: 'balance', label: '잔액' },
@@ -78,11 +135,120 @@ async function fetchWallet() {
   loading.value = true
   try {
     const response = await api.get('/wallet')
-    wallet.value = response.data
+    const payload = response.data?.data || response.data || {}
+    wallet.value = payload
   } catch (error) {
     console.error('자산 현황 로딩 실패:', error)
   }
   loading.value = false
+}
+
+function selectAmount(amount) {
+  selectedAmount.value = amount
+  customAmount.value = null
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+function toggleCharge() {
+  showCharge.value = !showCharge.value
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+function getFinalAmount() {
+  const custom = customAmount.value
+  if (custom && Number.isFinite(custom)) {
+    return custom
+  }
+  return selectedAmount.value
+}
+
+async function loadPortOneScript() {
+  if (window.IMP) return
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdn.iamport.kr/js/iamport.payment-1.2.0.js'
+    script.onload = resolve
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
+async function handleCharge() {
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  if (!authStore.isAuthenticated) {
+    errorMessage.value = '로그인이 필요합니다.'
+    return
+  }
+
+  const amount = getFinalAmount()
+  if (!amount || amount < 10000 || amount % 10000 !== 0) {
+    errorMessage.value = '10,000 골드 단위로 입력해주세요.'
+    return
+  }
+
+  charging.value = true
+  try {
+    await loadPortOneScript()
+    const { IMP } = window
+    const merchantId = import.meta.env.VITE_PORTONE_MERCHANT_ID || 'imp00000000'
+
+    // 1) 결제 준비: 서버가 merchantUid 발급
+    const prepareRes = await api.post('/payments/wallet/prepare', { amount })
+    const preparePayload = prepareRes.data?.data || prepareRes.data || {}
+    const merchantUid = preparePayload.merchantUid
+
+    if (!merchantUid) {
+      throw new Error('merchantUid를 받을 수 없습니다.')
+    }
+
+    // 2) 포트원 결제창 호출
+    IMP.init(merchantId)
+    await new Promise((resolve, reject) => {
+      IMP.request_pay(
+        {
+          pg: 'html5_inicis', // KG이니시스 결제
+          pay_method: 'card',
+          merchant_uid: merchantUid,
+          name: '골드 충전',
+          amount,
+          buyer_email: authStore.user?.email,
+          buyer_name: authStore.user?.nickname
+        },
+        async (rsp) => {
+          if (!rsp.success) {
+            reject(new Error(rsp.error_msg || '결제가 취소되었거나 실패했습니다.'))
+            return
+          }
+          try {
+            // 3) 결제 완료 검증
+            const completeRes = await api.post('/payments/wallet/complete', {
+              merchantUid,
+              impUid: rsp.imp_uid
+            })
+            const completePayload = completeRes.data?.data || completeRes.data || {}
+            if (completePayload.status !== 'PAID') {
+              reject(new Error(completePayload.failReason || '결제 검증에 실패했습니다.'))
+              return
+            }
+            successMessage.value = `충전 완료! 현재 잔액: ${formatPrice(completePayload.walletBalance || 0)}`
+            await fetchWallet()
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        }
+      )
+    })
+  } catch (err) {
+    console.error(err)
+    errorMessage.value = err?.message || '결제 처리 중 오류가 발생했습니다.'
+  } finally {
+    charging.value = false
+  }
 }
 
 onMounted(() => {
@@ -255,6 +421,120 @@ onMounted(() => {
   font-size: 14px;
   color: var(--text-gray);
   line-height: 1.7;
+}
+
+.wallet-actions {
+  margin-top: 32px;
+}
+
+.charge-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 16px;
+}
+
+.charge-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.charge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.close-btn {
+  border: none;
+  background: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+
+.charge-card {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.amount-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.amount-btn {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #fff7f9 100%);
+  font-weight: 800;
+  color: var(--text-dark);
+  transition: var(--transition);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+  text-align: left;
+}
+
+.amount-btn.active {
+  border-color: rgba(255, 71, 87, 0.4);
+  color: var(--primary-red);
+  box-shadow: 0 8px 18px rgba(255, 71, 87, 0.15);
+  background: linear-gradient(135deg, #fff0f4 0%, #ffe6ec 100%);
+}
+
+.amount-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.custom-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-input input {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.charge-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-weight: 800;
+}
+
+.error-message {
+  color: var(--primary-red);
+  font-size: 13px;
+}
+
+.success-message {
+  color: #00b85e;
+  font-size: 13px;
 }
 
 .loading {
