@@ -244,6 +244,7 @@ function handleAnimeSelected(anime) {
 }
 
 async function handleSubmit() {
+  // 기본적인 UI 레벨 검증 (빠른 피드백 제공)
   if (!form.value.title.trim()) {
     errorMessage.value = '경매 글 제목을 입력해주세요.'
     return
@@ -264,27 +265,26 @@ async function handleSubmit() {
     return
   }
 
-  if (form.value.startPrice > 5000000) {
-    errorMessage.value = '거래 제한 금액(500만 골드)을 초과할 수 없습니다.'
-    return
-  }
-
   loading.value = true
   errorMessage.value = ''
 
+  // 서비스 레이어로 데이터 전달 (금액 검증 등은 서비스 레이어에서 처리)
   const goodsData = {
     ...form.value,
     title: form.value.title.trim(),
-    images: form.value.images.map(img => img.file)
+    images: form.value.images.map(img => img.file),
+    // maxPrice 필드를 그대로 전달 (서비스 레이어에서 instantBuyPrice로 변환)
+    maxPrice: form.value.maxPrice || null
   }
 
   const result = await goodsStore.registerGoods(goodsData)
 
   if (result.success) {
     alert('굿즈가 등록되었습니다.')
-    router.push(`/goods/${result.data.id}`)
+    // 응답에서 goodsId를 받아서 상세 페이지로 이동
+    router.push({ path: '/goods', query: { goodsId: result.data?.goodsId } })
   } else {
-    errorMessage.value = result.message
+    errorMessage.value = result.message || '굿즈 등록에 실패했습니다.'
   }
 
   loading.value = false

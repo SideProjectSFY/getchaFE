@@ -70,7 +70,13 @@
                   class="seller-profile-image"
                 />
                 <span class="seller-name">{{ goods.sellerNickName }}</span>
-                <button @click="handleReportUser" class="report-user-btn">신고</button>
+                <button 
+                  v-if="!goods.checkSeller" 
+                  @click="handleReportUser" 
+                  class="report-user-btn"
+                >
+                  신고
+                </button>
               </div>
               <div class="meta-right">
                 <span :class="['status-badge', `status-${goods.auctionStatus.toLowerCase()}`]">
@@ -118,6 +124,7 @@
               경매 중지
             </button>
             <button
+              v-if="!goods.checkSeller"
               @click="toggleWishlist"
               :class="['wishlist-btn', { active: isWishlisted }]"
             >
@@ -144,7 +151,7 @@
             </div>
             <div class="detail-item">
               <span class="detail-label">카테고리</span>
-              <span class="detail-value">{{ goods.category }}</span>
+              <span class="detail-value">{{ categoryDisplay }}</span>
             </div>
             <div class="detail-item">
               <span class="detail-label">찜 수</span>
@@ -209,6 +216,7 @@ import CommentList from '../../components/CommentList.vue'
 import api from '../../services/api'
 import { useTimeRemaining } from '../../composables/useTimeRemaining'
 import { submitBid } from '../../services/bid'
+import { CATEGORY_REVERSE_MAP } from '../../utils/category'
 
 const route = useRoute()
 const router = useRouter()
@@ -222,6 +230,12 @@ const currentImage = ref(null)
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isOwner = computed(() => goods.value?.checkSeller || false)
 const isWishlisted = computed(() => goods.value?.checkWish || false)
+
+// 카테고리 영문값을 한글로 변환
+const categoryDisplay = computed(() => {
+  if (!goods.value?.category) return ''
+  return CATEGORY_REVERSE_MAP[goods.value.category] || goods.value.category
+})
 
 // 실시간으로 계산된 남은 시간 (composable 사용)
 const { timeRemaining, startTimer } = useTimeRemaining({

@@ -1,4 +1,6 @@
 import api from './api'
+import { CATEGORY_MAP } from '../utils/category'
+import { createGoodsFormData } from '../utils/imageFile'
 
 /**
  * 에러 응답에서 메시지 추출
@@ -121,41 +123,137 @@ export async function fetchGoodsDetail(goodsId) {
 }
 
 /**
+ * 굿즈 등록 금액 검증
+ * @param {number} startPrice - 시작가
+ * @param {number|null} instantBuyPrice - 즉시구매가 (선택값)
+ * @returns {{valid: boolean, message?: string}}
+ */
+export function validateGoodsPrices(startPrice, instantBuyPrice = null) {
+  const MIN_PRICE = 1000 // 천원
+  const MAX_PRICE = 5000000 // 500만원
+
+  // 시작가 검증
+  if (!startPrice || startPrice < MIN_PRICE) {
+    return {
+      valid: false,
+      message: `시작가는 ${MIN_PRICE.toLocaleString()}원 이상이어야 합니다.`
+    }
+  }
+
+  if (startPrice > MAX_PRICE) {
+    return {
+      valid: false,
+      message: `시작가는 ${MAX_PRICE.toLocaleString()}원 이하여야 합니다.`
+    }
+  }
+
+  // 즉시구매가 검증 (선택값이지만 입력된 경우)
+  if (instantBuyPrice !== null && instantBuyPrice !== undefined) {
+    if (instantBuyPrice < startPrice) {
+      return {
+        valid: false,
+        message: '즉시구매가는 시작가 이상이어야 합니다.'
+      }
+    }
+
+    if (instantBuyPrice > MAX_PRICE) {
+      return {
+        valid: false,
+        message: `즉시구매가는 ${MAX_PRICE.toLocaleString()}원 이하여야 합니다.`
+      }
+    }
+  }
+
+  return { valid: true }
+}
+
+/**
  * 굿즈 등록 API 호출
  * @param {Object} goodsData - 굿즈 등록 데이터
- * @param {Array} goodsData.images - 이미지 파일 배열
+ * @param {number} goodsData.animeId - 애니메이션 ID (필수)
+ * @param {string} goodsData.category - 카테고리 (한글 또는 영문, 필수)
+ * @param {string} goodsData.title - 제목 (필수)
+ * @param {string} goodsData.description - 설명 (필수)
+ * @param {number} goodsData.startPrice - 시작가 (필수, 천원 이상)
+ * @param {number|null} goodsData.maxPrice - 상한가/즉시구매가 (선택)
+ * @param {number} goodsData.duration - 경매 기간 (필수)
+ * @param {Array<File>} goodsData.images - 이미지 파일 배열 (필수)
  * @returns {Promise<{success: boolean, data?: any, message?: string, errorCode?: number}>}
  */
 export async function registerGoods(goodsData) {
   try {
-    const formData = new FormData()
-    const { images, ...goodsRegister } = goodsData
-    
-    formData.append(
-      'goodsRegister',
-      new Blob([JSON.stringify(goodsRegister)], { type: 'application/json' })
-    )
-    
-    if (Array.isArray(images)) {
-      images.forEach(img => formData.append('imageFiles', img))
+    // 필수 필드 검증
+    if (!goodsData.animeId || !goodsData.category || !goodsData.title || !goodsData.description || !goodsData.startPrice || !goodsData.duration) {
+      return {
+        success: false,
+        message: '필수 항목을 모두 입력해주세요.',
+        errorCode: 400
+      }
     }
 
+    // 이미지 파일 검증
+    if (!Array.isArray(goodsData.images) || goodsData.images.length === 0) {
+      return {
+        success: false,
+        message: '이미지를 최소 1개 이상 업로드해주세요.',
+        errorCode: 400
+      }
+    }
+
+    // 금액 검증
+    const priceValidation = validateGoodsPrices(goodsData.startPrice, goodsData.maxPrice)
+    if (!priceValidation.valid) {
+      return {
+        success: false,
+        message: priceValidation.message,
+        errorCode: 400
+      }
+    }
+
+    // 카테고리 변환 (한글 -> 영문)
+    const category = CATEGORY_MAP[goodsData.category] || goodsData.category
+
+    // goodsRegister 객체 생성 (백엔드 요청 형식에 맞춤)
+    const { images, maxPrice, ...rest } = goodsData
+    const goodsRegister = {
+      animeId: Number(goodsData.animeId),
+      category: category,
+      title: String(goodsData.title).trim(),
+      description: String(goodsData.description).trim(),
+      startPrice: Number(goodsData.startPrice),
+      instantBuyPrice: maxPrice !== null && maxPrice !== undefined ? Number(maxPrice) : null,
+      duration: Number(goodsData.duration)
+    }
+
+    // FormData 생성 (공통 함수 사용)
+    const formData = createGoodsFormData(goodsRegister, 'goodsRegister', images, 'imageFiles')
+
+    // API 호출
     const response = await api.post('/goods', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
 
+    // 응답 데이터 추출 (goodsId 반환)
+    const responseData = response.data?.data || response.data
+
     return {
       success: true,
-      data: response.data?.data || response.data
+      data: {
+        goodsId: responseData?.goodsId
+      }
     }
   } catch (error) {
     const status = error.response?.status
-    const message = extractErrorMessage(error, {
+
+    // 에러 메시지 처리 (백엔드 메시지 우선)
+    const defaultMessages = {
       400: '잘못된 요청입니다.',
       401: '로그인이 필요합니다.',
       403: '굿즈 등록 권한이 없습니다.',
-      500: '굿즈 등록에 실패했습니다.'
-    })
+      500: '굿즈 등록에 실패하였습니다.'
+    }
+
+    const message = extractErrorMessage(error, defaultMessages)
 
     return {
       success: false,
