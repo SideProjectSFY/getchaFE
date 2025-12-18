@@ -1,10 +1,16 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import api from '../services/api'
 import { categoryImages } from '../data/categoryImages'
 import { calculateTimeRemaining } from '../utils/format'
 import { CATEGORY_MAP } from '../utils/category'
-import { extractArrayResponse } from '../utils/responseApi'
+import { placeBid as bidServicePlaceBid, stopAuction as bidServiceStopAuction } from '../services/bid'
+import { 
+  deleteGoods as goodsServiceDeleteGoods,
+  fetchGoodsList as goodsServiceFetchGoodsList,
+  fetchGoodsDetail as goodsServiceFetchGoodsDetail,
+  registerGoods as goodsServiceRegisterGoods,
+  updateGoods as goodsServiceUpdateGoods
+} from '../services/goods'
 
 export const useGoodsStore = defineStore('goods', () => {
   const goodsList = ref([])
@@ -76,14 +82,19 @@ export const useGoodsStore = defineStore('goods', () => {
         isLoadingMore.value = true
       }
       
-      // filters에 이미 백엔드 형식으로 변환된 값들이 들어옴 (영문 카테고리 포함)
-      const params = { ...filters, page, size }
+      // 서비스 레이어 호출 (API 호출만 수행)
+      const result = await goodsServiceFetchGoodsList(filters, page, size)
       
-      const response = await api.get('/goods/list', { params })
+      if (!result.success) {
+        if (append) {
+          isLoadingMore.value = false
+        }
+        return result
+      }
       
-      // 응답 구조: response.data.data.items 또는 response.data.items
-      const responseData = response.data?.data || response.data
-      const items = responseData?.items || []
+      // 서비스에서 받은 데이터 처리 (상태 관리)
+      const responseData = result.data || {}
+      const items = responseData.items || []
       
       // 백엔드 데이터를 프론트엔드 형식으로 변환
       const transformedItems = items.map(item => transformGoodsItem(item))
@@ -119,14 +130,29 @@ export const useGoodsStore = defineStore('goods', () => {
       if (append) {
         isLoadingMore.value = false
       }
-      return { success: false, message: error.response?.data?.message || '굿즈 목록을 불러오는데 실패했습니다.' }
+      return { success: false, message: '굿즈 목록을 불러오는데 실패했습니다.' }
     }
   }
 
   async function fetchGoodsDetail(id) {
     try {
-      const response = await api.get(`/goods`, { params: { goodsId: id } })
-      const responseData = response.data?.data || response.data
+      // 서비스 레이어 호출 (API 호출만 수행)
+      const result = await goodsServiceFetchGoodsDetail(id)
+      
+      if (!result.success) {
+        // 403 에러는 로그인이 필요한 경우
+        if (result.requiresAuth) {
+          return {
+            success: false,
+            requiresAuth: true,
+            message: result.message || '로그인이 필요합니다. 로그인 후 다시 시도해주세요.'
+          }
+        }
+        return result
+      }
+      
+      // 서비스에서 받은 데이터 처리 (데이터 변환 및 상태 관리)
+      const responseData = result.data || {}
       
       // 백엔드 응답 형식 변환
       const goodDetail = responseData?.goodDetail || {}
@@ -154,67 +180,23 @@ export const useGoodsStore = defineStore('goods', () => {
       
       return { success: true }
     } catch (error) {
-      // 403 에러는 로그인이 필요한 경우
-      if (error.response?.status === 403) {
-        return { 
-          success: false, 
-          requiresAuth: true,
-          message: '로그인이 필요합니다. 로그인 후 다시 시도해주세요.' 
-        }
-      }
-      return { success: false, message: error.response?.data?.message || '굿즈 정보를 불러오는데 실패했습니다.' }
+      return { success: false, message: '굿즈 정보를 불러오는데 실패했습니다.' }
     }
   }
 
   async function registerGoods(goodsData) {
-    try {
-      const formData = new FormData()
-      const { images, ...goodsRegister } = goodsData
-      formData.append(
-        'goodsRegister',
-        new Blob([JSON.stringify(goodsRegister)], { type: 'application/json' })
-      )
-      if (Array.isArray(images)) {
-        images.forEach(img => formData.append('imageFiles', img))
-      }
-
-      const response = await api.post('/goods', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || '굿즈 등록에 실패했습니다.' }
-    }
+    // 서비스 레이어 호출 (FormData 생성 및 API 호출 포함)
+    return await goodsServiceRegisterGoods(goodsData)
   }
 
   async function updateGoods(id, goodsData) {
-    try {
-      const formData = new FormData()
-      const { newImages, ...goodsModify } = goodsData
-      formData.append(
-        'goodsModify',
-        new Blob([JSON.stringify({ ...goodsModify, goodsId: id })], { type: 'application/json' })
-      )
-      if (Array.isArray(newImages)) {
-        newImages.forEach(img => formData.append('newImageFiles', img))
-      }
-
-      const response = await api.put(`/goods`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || '굿즈 수정에 실패했습니다.' }
-    }
+    // 서비스 레이어 호출 (FormData 생성 및 API 호출 포함)
+    return await goodsServiceUpdateGoods(id, goodsData)
   }
 
   async function deleteGoods(id) {
-    try {
-      await api.delete(`/goods`, { params: { goodsId: id } })
-      return { success: true }
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || '굿즈 삭제에 실패했습니다.' }
-    }
+    // goods.js 서비스를 사용하여 굿즈 삭제 처리
+    return await goodsServiceDeleteGoods(id)
   }
 
   // 찜 관련 기능은 wishStore에서 처리
@@ -230,21 +212,13 @@ export const useGoodsStore = defineStore('goods', () => {
   }
 
   async function placeBid(goodsId, bidAmount) {
-    try {
-      const response = await api.post(`/bid`, { goodsId, bidAmount })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || '입찰에 실패했습니다.' }
-    }
+    // bid.js 서비스를 사용하여 입찰 처리
+    return await bidServicePlaceBid(goodsId, bidAmount)
   }
 
   async function stopAuction(goodsId) {
-    try {
-      const response = await api.put(`/bid/stop-auction`, null, { params: { goodsId } })
-      return { success: true, data: response.data }
-    } catch (error) {
-      return { success: false, message: error.response?.data?.message || '경매 중지에 실패했습니다.' }
-    }
+    // bid.js 서비스를 사용하여 경매 중지 처리
+    return await bidServiceStopAuction(goodsId)
   }
 
   function getCategoryImage(category) {
