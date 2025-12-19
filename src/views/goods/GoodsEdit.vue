@@ -79,17 +79,6 @@
           />
         </div>
 
-        <!-- 캐릭터명 -->
-        <div class="form-section">
-          <label class="section-label">캐릭터명 (선택)</label>
-          <input
-            v-model="form.characterName"
-            type="text"
-            placeholder="캐릭터명을 입력하세요"
-            class="form-input"
-          />
-        </div>
-
         <!-- 굿즈 종류 -->
         <div class="form-section">
           <label class="section-label">굿즈 종류 <span class="required">*</span></label>
@@ -147,7 +136,7 @@
                 max="14"
                 class="form-input"
               />
-              <span class="input-note">2일 ~ 14일 (미입력 시 기존 유지)</span>
+              <span class="input-note">2일 ~ 14일 </span>
             </div>
           </div>
         </div>
@@ -157,7 +146,7 @@
         </div>
 
         <div class="form-actions">
-          <router-link :to="`/goods/${goods.id}`" class="btn-outline">취소</router-link>
+          <router-link :to="`/goods/${goods.goodsId}`" class="btn-outline">취소</router-link>
           <button type="submit" class="btn-primary" :disabled="loading">
             {{ loading ? '수정 중...' : '수정하기' }}
           </button>
@@ -172,6 +161,8 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoodsStore } from '../../stores/goods'
 import AnimeSearch from '../../components/AnimeSearch.vue'
+import { readFilesAsDataURL } from '../../utils/imageFile'
+import { CATEGORY_REVERSE_MAP } from '../../utils/category'
 
 const route = useRoute()
 const router = useRouter()
@@ -182,7 +173,10 @@ const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL')
 const loading = ref(true)
 const errorMessage = ref('')
 const goods = ref(null)
+// existingImages: [{ imageId, filePath, sortOrder }, ...] 형태로 저장
 const existingImages = ref([])
+// 원본 이미지 정보 (삭제 추적용)
+const originalImageList = ref([])
 const mainImageIndex = ref(-1)
 const selectedAnime = ref([])
 
@@ -191,7 +185,6 @@ const form = ref({
   images: [],
   animeId: null,
   animeTitle: '',
-  characterName: '',
   category: '',
   description: '',
   startPrice: null,
@@ -200,7 +193,7 @@ const form = ref({
 })
 
 const allImages = computed(() => [
-  ...existingImages.value.map(url => ({ type: 'existing', url })),
+  ...existingImages.value.map(img => ({ type: 'existing', url: img.filePath || img.url, imageId: img.imageId })),
   ...form.value.images.map(img => ({ type: 'new', url: img.preview }))
 ])
 
@@ -229,44 +222,70 @@ async function fetchGoods() {
     return
   }
 
-  existingImages.value = [...(goods.value.images || [])]
+  // imageListInfo를 사용하여 existingImages 초기화 (imageId, sortOrder 포함)
+  if (goods.value.imageListInfo && Array.isArray(goods.value.imageListInfo)) {
+    existingImages.value = goods.value.imageListInfo.map(img => ({
+      imageId: img.imageId,
+      filePath: img.filePath,
+      sortOrder: img.sortOrder || 0
+    }))
+    originalImageList.value = [...goods.value.imageListInfo]
+  } else {
+    // 하위 호환성: imageListInfo가 없으면 기존 방식 사용
+    existingImages.value = (goods.value.images || []).map((url, index) => ({
+      imageId: null, // imageId가 없는 경우
+      filePath: url,
+      sortOrder: index
+    }))
+    originalImageList.value = [...existingImages.value]
+  }
+
+  // 카테고리가 영어로 들어오면 한글로 변환
+  const categoryValue = goods.value.category || ''
+  const categoryDisplay = CATEGORY_REVERSE_MAP[categoryValue] || categoryValue
+
+  // instantBuyPrice가 null이 아니고 값이 있으면 maxPrice로 설정
+  const instantBuyPrice = goods.value.instantBuyPrice !== null && goods.value.instantBuyPrice !== undefined 
+    ? goods.value.instantBuyPrice 
+    : null
+
   form.value = {
     title: goods.value.title || '',
     images: [],
     animeId: goods.value.animeId || null,
     animeTitle: goods.value.animeTitle || '',
-    characterName: goods.value.characterName || '',
-    category: goods.value.category || '',
+    category: categoryDisplay,
     description: goods.value.description || '',
     startPrice: goods.value.startPrice || 0,
-    maxPrice: goods.value.maxPrice || null,
+    maxPrice: instantBuyPrice || goods.value.maxPrice || null,
     duration: goods.value.duration || null
   }
   selectedAnime.value = [
     {
       id: goods.value.animeId || 0,
       title: { romaji: goods.value.animeTitle, english: goods.value.animeTitle },
-      coverImage: { medium: goods.value.images?.[0] || '/placeholder.png' }
+      coverImage: { medium: goods.value.animePosterUrl || '/placeholder.png' }
     }
   ]
 
   loading.value = false
 }
 
-function handleImageUpload(event) {
+async function handleImageUpload(event) {
   const files = Array.from(event.target.files)
-  files.forEach(file => {
-    if ((existingImages.value.length + form.value.images.length) >= 10) return
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      form.value.images.push({
-        file,
-        preview: e.target.result
-      })
-      mainImageIndex.value = allImages.value.length // last index after push
-    }
-    reader.readAsDataURL(file)
-  })
+  const remainingSlots = 10 - (existingImages.value.length + form.value.images.length)
+  const filesToAdd = files.slice(0, remainingSlots)
+  
+  if (filesToAdd.length === 0) return
+
+  // 공통 로직 활용: readFilesAsDataURL 사용
+  try {
+    const newImagePreviews = await readFilesAsDataURL(filesToAdd)
+    form.value.images.push(...newImagePreviews)
+    mainImageIndex.value = allImages.value.length - 1
+  } catch (error) {
+    errorMessage.value = '이미지 파일을 읽는 중 오류가 발생했습니다.'
+  }
 }
 
 function removeImage(index) {
@@ -315,13 +334,14 @@ function handleAnimeSelected(anime) {
 }
 
 async function handleSubmit() {
+  // 기본적인 UI 레벨 검증 (빠른 피드백 제공)
   if (!form.value.title.trim()) {
     errorMessage.value = '경매 글 제목을 입력해주세요.'
     return
   }
 
   if (existingImages.value.length === 0 && form.value.images.length === 0) {
-    errorMessage.value = '이미지를 최소 1개 이상 업로드해주세요.'
+    errorMessage.value = '이미지를 최소 1개 이상 유지하거나 업로드해주세요.'
     return
   }
 
@@ -335,19 +355,29 @@ async function handleSubmit() {
     return
   }
 
-  if (form.value.startPrice && form.value.startPrice > 5000000) {
-    errorMessage.value = '거래 제한 금액(500만 골드)을 초과할 수 없습니다.'
-    return
-  }
-
   loading.value = true
   errorMessage.value = ''
 
+  // 삭제된 이미지 ID 추적 (원본에 있지만 현재 existingImages에 없는 이미지)
+  const currentImageIds = new Set(existingImages.value.map(img => img.imageId).filter(id => id !== null))
+  const deleteImageIds = originalImageList.value
+    .filter(img => img.imageId && !currentImageIds.has(img.imageId))
+    .map(img => img.imageId)
+
+  // existingImages를 sortOrder와 함께 정리 (현재 순서대로, 1부터 시작)
+  const existingImagesWithOrder = existingImages.value.map((img, index) => ({
+    imageId: img.imageId,
+    sortOrder: index + 1
+  }))
+
+  // 서비스 레이어로 데이터 전달 (금액 검증 등은 서비스 레이어에서 처리)
   const goodsData = {
     ...form.value,
     title: form.value.title.trim(),
-    images: form.value.images.map(img => img.file),
-    existingImages: existingImages.value,
+    newImages: form.value.images.map(img => img.file),
+    existingImages: existingImagesWithOrder,
+    deleteImageIds: deleteImageIds.length > 0 ? deleteImageIds : undefined,
+    maxPrice: form.value.maxPrice || null,
     animeTitle: form.value.animeTitle,
     animeId: form.value.animeId
   }
@@ -356,9 +386,9 @@ async function handleSubmit() {
 
   if (result.success) {
     alert('굿즈가 수정되었습니다.')
-    router.push(`/goods/${route.params.id}`)
+    router.push({ path: '/goods', query: { goodsId: route.params.id } })
   } else {
-    errorMessage.value = result.message
+    errorMessage.value = result.message || '굿즈 수정에 실패했습니다.'
   }
 
   loading.value = false
@@ -538,28 +568,6 @@ onMounted(() => {
 .upload-btn:hover {
   border-color: var(--primary-red);
   background: rgba(255, 71, 87, 0.08);
-}
-
-.file-input {
-  display: none;
-}
-
-.upload-btn {
-  width: 120px;
-  height: 120px;
-  border: 2px dashed var(--border-color);
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: var(--transition);
-  background: var(--bg-light);
-}
-
-.upload-btn:hover {
-  border-color: var(--primary-red);
-  background: rgba(230, 57, 70, 0.05);
 }
 
 .file-input {

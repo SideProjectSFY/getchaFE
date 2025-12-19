@@ -265,42 +265,85 @@ export async function registerGoods(goodsData) {
 
 /**
  * 굿즈 수정 API 호출
- * @param {number} goodsId - 굿즈 ID
+ * @param {number} goodsId - 굿즈 ID (필수값)
  * @param {Object} goodsData - 굿즈 수정 데이터
- * @param {Array} goodsData.newImages - 새로 추가할 이미지 파일 배열
- * @param {Array} goodsData.existingImages - 기존 이미지 URL 배열 (유지할 이미지)
+ * @param {number} goodsData.animeId - 애니메이션 ID (필수)
+ * @param {string} goodsData.category - 카테고리 (한글 또는 영문, 필수)
+ * @param {string} goodsData.title - 제목 (필수)
+ * @param {string} goodsData.description - 설명 (필수)
+ * @param {number} goodsData.startPrice - 시작가 (필수, 천원 이상)
+ * @param {number|null} goodsData.maxPrice - 상한가/즉시구매가 (선택)
+ * @param {number} goodsData.duration - 경매 기간 (필수)
+ * @param {Array<File>} goodsData.newImages - 새로 추가할 이미지 파일 배열
+ * @param {Array} goodsData.existingImages - 기존 이미지 정보 배열 [{ imageId, sortOrder }, ...]
+ * @param {Array<number>} goodsData.deleteImageIds - 삭제할 이미지 ID 배열
  * @returns {Promise<{success: boolean, data?: any, message?: string, errorCode?: number}>}
  */
 export async function updateGoods(goodsId, goodsData) {
   try {
-    if (!goodsId) {
+    // 필수 필드 검증
+    if (!goodsId || !goodsData.animeId || !goodsData.category || !goodsData.title || !goodsData.description || !goodsData.startPrice || !goodsData.duration) {
       return {
         success: false,
-        message: '굿즈 ID는 필수입니다.',
+        message: '필수 항목을 모두 입력해주세요.',
         errorCode: 400
       }
     }
 
-    const formData = new FormData()
-    const { newImages, existingImages, ...goodsModify } = goodsData
+    // 이미지 파일 검증 (기존 이미지 또는 새 이미지 중 하나는 있어야 함)
+    const hasExistingImages = Array.isArray(goodsData.existingImages) && goodsData.existingImages.length > 0
+    const hasNewImages = Array.isArray(goodsData.newImages) && goodsData.newImages.length > 0
     
-    // 기존 이미지 정보도 함께 전송 (필요한 경우)
-    if (existingImages && Array.isArray(existingImages)) {
-      formData.append(
-        'goodsModify',
-        new Blob([JSON.stringify({ ...goodsModify, goodsId, existingImages })], { type: 'application/json' })
-      )
-    } else {
-      formData.append(
-        'goodsModify',
-        new Blob([JSON.stringify({ ...goodsModify, goodsId })], { type: 'application/json' })
-      )
-    }
-    
-    if (Array.isArray(newImages)) {
-      newImages.forEach(img => formData.append('newImageFiles', img))
+    if (!hasExistingImages && !hasNewImages) {
+      return {
+        success: false,
+        message: '이미지를 최소 1개 이상 유지하거나 업로드해주세요.',
+        errorCode: 400
+      }
     }
 
+    // 금액 검증 (공통 로직 활용)
+    const priceValidation = validateGoodsPrices(goodsData.startPrice, goodsData.maxPrice)
+    if (!priceValidation.valid) {
+      return {
+        success: false,
+        message: priceValidation.message,
+        errorCode: 400
+      }
+    }
+
+    // 카테고리 변환 (한글 -> 영문)
+    const category = CATEGORY_MAP[goodsData.category] || goodsData.category
+
+    // goodsModify 객체 생성 (백엔드 요청 형식에 맞춤)
+    const { newImages, existingImages, deleteImageIds, maxPrice, ...rest } = goodsData
+    
+    // existingImages를 백엔드 형식으로 변환 [{ imageId, sortOrder }, ...]
+    // sortOrder는 1부터 시작
+    const existingImagesFormatted = Array.isArray(existingImages) 
+      ? existingImages.map((img, index) => ({
+          imageId: img.imageId || img.id,
+          sortOrder: img.sortOrder !== undefined ? img.sortOrder : index + 1
+        }))
+      : []
+
+    const goodsModify = {
+      goodsId: Number(goodsId),
+      animeId: Number(goodsData.animeId),
+      category: category,
+      title: String(goodsData.title).trim(),
+      description: String(goodsData.description).trim(),
+      startPrice: Number(goodsData.startPrice),
+      instantBuyPrice: maxPrice !== null && maxPrice !== undefined ? Number(maxPrice) : null,
+      duration: Number(goodsData.duration),
+      existingImages: existingImagesFormatted,
+      ...(Array.isArray(deleteImageIds) && deleteImageIds.length > 0 && { deleteImageIds: deleteImageIds.map(id => Number(id)) })
+    }
+
+    // FormData 생성 (공통 함수 사용)
+    const formData = createGoodsFormData(goodsModify, 'goodsModify', newImages || [], 'newImageFiles')
+
+    // API 호출
     const response = await api.put('/goods', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     })
@@ -311,13 +354,17 @@ export async function updateGoods(goodsId, goodsData) {
     }
   } catch (error) {
     const status = error.response?.status
-    const message = extractErrorMessage(error, {
+
+    // 에러 메시지 처리 (백엔드 메시지 우선)
+    const defaultMessages = {
       400: '잘못된 요청입니다.',
       401: '로그인이 필요합니다.',
-      403: '굿즈 수정 권한이 없습니다.',
+      403: '수정 권한이 없습니다.',
       404: '존재하지 않는 굿즈입니다.',
-      500: '굿즈 수정에 실패했습니다.'
-    })
+      500: '굿즈 글 수정에 실패하였습니다.'
+    }
+
+    const message = extractErrorMessage(error, defaultMessages)
 
     return {
       success: false,

@@ -159,13 +159,21 @@ export const useGoodsStore = defineStore('goods', () => {
       const imageList = responseData?.imageList || []
       const participants = responseData?.participants || []
       
+      // 이미지 리스트를 sortOrder 기준으로 정렬
+      const sortedImageList = [...imageList]
+        .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
+
       // 프론트엔드에서 사용할 형식으로 변환
       currentGoods.value = {
         ...goodDetail,
-        // 이미지 리스트를 sortOrder 기준으로 정렬하여 배열로 변환
-        images: [...imageList]
-          .sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0))
-          .map(img => img.filePath),
+        // 이미지 URL 배열 (기존 호환성 유지)
+        images: sortedImageList.map(img => img.filePath),
+        // 이미지 전체 정보 (수정 시 imageId, sortOrder 필요)
+        imageListInfo: sortedImageList.map(img => ({
+          imageId: img.imageId,
+          filePath: img.filePath,
+          sortOrder: img.sortOrder || 0
+        })),
         // 참여자 리스트 변환
         bidders: participants.map(p => ({
           id: p.bidId,
