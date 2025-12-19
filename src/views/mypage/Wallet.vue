@@ -194,7 +194,7 @@ async function handleCharge() {
   try {
     await loadPortOneScript()
     const { IMP } = window
-    const merchantId = import.meta.env.VITE_PORTONE_MERCHANT_ID || 'imp00000000'
+    const merchantId = 'imp00455537'
 
     // 1) 결제 준비: 서버가 merchantUid 발급
     const prepareRes = await api.post('/payments/wallet/prepare', { amount })
@@ -210,7 +210,8 @@ async function handleCharge() {
     await new Promise((resolve, reject) => {
       IMP.request_pay(
         {
-          pg: 'html5_inicis', // KG이니시스 결제
+          // KG이니시스 테스트 PG 
+          pg: 'html5_inicis.INIpayTest',
           pay_method: 'card',
           merchant_uid: merchantUid,
           name: '골드 충전',
