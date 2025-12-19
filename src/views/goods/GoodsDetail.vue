@@ -202,11 +202,76 @@
     <div v-else class="error-state">
       <p>굿즈를 찾을 수 없습니다.</p>
     </div>
+
+    <!-- 경매 중지 모달 -->
+    <div v-if="showStopModal" class="bid-modal-backdrop" @click.self="closeStopModal">
+      <div class="bid-modal">
+        <div class="bid-header">
+          <h3>경매 중지</h3>
+          <button class="close-btn" @click="closeStopModal">×</button>
+        </div>
+        <div class="stop-warning">
+          <p class="warning-title">⚠️ 경매를 중지하시겠습니까?</p>
+          <p class="warning-text">경매를 중지하면 참여자들에게 예치금이 환원됩니다.</p>
+          <p class="warning-text">이 작업은 되돌릴 수 없습니다.</p>
+        </div>
+        <div class="bid-actions">
+          <button class="btn-outline cancel-btn" @click="closeStopModal">취소</button>
+          <button class="btn-primary confirm-btn stop-confirm-btn" :disabled="stoppingAuction" @click="confirmStopAuction">
+            {{ stoppingAuction ? '처리 중...' : '경매 중지' }}
+          </button>
+        </div>
+        <p v-if="stopErrorMessage" class="error-message">{{ stopErrorMessage }}</p>
+      </div>
+    </div>
+
+    <!-- 입찰 모달 -->
+    <div v-if="showBidModal" class="bid-modal-backdrop" @click.self="closeBidModal">
+      <div class="bid-modal">
+        <div class="bid-header">
+          <h3>입찰하기</h3>
+          <button class="close-btn" @click="closeBidModal">×</button>
+        </div>
+        <div class="bid-info">
+          <div class="bid-info-item">
+            <span class="bid-info-label">시작가</span>
+            <span class="bid-info-value">{{ formatPrice(goods?.startPrice || 0) }}</span>
+          </div>
+          <div v-if="goods && !(goods.currentBidAmount === null && (goods.auctionStatus === 'WAIT' || goods.auctionStatus === 'STOPPED'))" class="bid-info-item">
+            <span class="bid-info-label">현재 입찰가</span>
+            <span class="bid-info-value highlight">{{ formatPrice(goods.currentBidAmount || goods.startPrice) }}</span>
+          </div>
+          <div class="bid-info-item">
+            <span class="bid-info-label">최소 입찰가</span>
+            <span class="bid-info-value required">{{ formatPrice(minBidAmount) }}</span>
+          </div>
+        </div>
+        <p class="bid-warning">입찰 후 취소할 수 없습니다. 신중하게 결정해주세요.</p>
+        <div class="bid-input-group">
+          <label for="bidAmount">입찰 금액 (골드)</label>
+          <input
+            id="bidAmount"
+            type="number"
+            :min="minBidAmount"
+            v-model.number="bidAmount"
+            placeholder="입찰 금액을 입력하세요"
+            class="bid-input"
+          />
+        </div>
+        <div class="bid-actions">
+          <button class="btn-outline cancel-btn" @click="closeBidModal">취소</button>
+          <button class="btn-primary confirm-btn" :disabled="submittingBid" @click="confirmBid">
+            {{ submittingBid ? '입찰 중...' : '입찰하기' }}
+          </button>
+        </div>
+        <p v-if="bidErrorMessage" class="error-message">{{ bidErrorMessage }}</p>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
@@ -227,9 +292,37 @@ const loading = ref(true)
 const goods = ref(null)
 const currentImage = ref(null)
 
+// 입찰 모달 관련 상태
+const showBidModal = ref(false)
+const bidAmount = ref(null)
+const bidErrorMessage = ref('')
+const submittingBid = ref(false)
+
+// 경매 중지 모달 관련 상태
+const showStopModal = ref(false)
+const stopErrorMessage = ref('')
+const stoppingAuction = ref(false)
+
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const isOwner = computed(() => goods.value?.checkSeller || false)
 const isWishlisted = computed(() => goods.value?.checkWish || false)
+
+// 최소 입찰 금액 계산
+const minBidAmount = computed(() => {
+  if (!goods.value) return 0
+  
+  const isFirstBid = goods.value.auctionStatus === 'WAIT' && 
+                     (goods.value.currentBidAmount === null || goods.value.currentBidAmount === undefined)
+  
+  if (isFirstBid) {
+    return goods.value.startPrice || 0
+  } else {
+    // 현재 입찰가보다 높아야 함 (천원 단위로 올림)
+    const current = goods.value.currentBidAmount || goods.value.startPrice || 0
+    // 천원 단위로 올림: (현재가 + 1000)을 천원 단위로 내림한 후 천원 더하기
+    return Math.floor((current + 1000) / 1000) * 1000
+  }
+})
 
 // 카테고리 영문값을 한글로 변환
 const categoryDisplay = computed(() => {
@@ -272,26 +365,52 @@ async function fetchGoodsDetail() {
   loading.value = false
 }
 
-async function handleBid() {
+async function openBidModal() {
   if (!isAuthenticated.value) {
     alert('로그인이 필요합니다.')
     router.push('/login')
     return
   }
+  
+  showBidModal.value = true
+  bidAmount.value = minBidAmount.value
+  bidErrorMessage.value = ''
+  
+  // 모달이 열린 후 입력 필드에 포커스
+  await nextTick()
+  const input = document.getElementById('bidAmount')
+  if (input) {
+    input.focus()
+    input.select()
+  }
+}
 
-  const bidAmount = prompt('입찰 금액을 입력하세요 (골드)')
-  if (!bidAmount) return
+function closeBidModal() {
+  showBidModal.value = false
+  bidAmount.value = null
+  bidErrorMessage.value = ''
+}
 
-  const amount = parseInt(bidAmount)
+async function confirmBid() {
+  if (!bidAmount.value || bidAmount.value <= 0) {
+    bidErrorMessage.value = '올바른 금액을 입력해주세요.'
+    return
+  }
+
+  const amount = parseInt(bidAmount.value)
   if (isNaN(amount) || amount <= 0) {
-    alert('올바른 금액을 입력해주세요.')
+    bidErrorMessage.value = '올바른 금액을 입력해주세요.'
     return
   }
 
-  // 입찰 확인
-  if (!confirm('입찰 후 취소할 수 없습니다. 정말 입찰하시겠습니까?')) {
+  // 최소 입찰 금액 검증
+  if (amount < minBidAmount.value) {
+    bidErrorMessage.value = `최소 입찰가(${formatPrice(minBidAmount.value)}) 이상의 금액을 입력해주세요.`
     return
   }
+
+  submittingBid.value = true
+  bidErrorMessage.value = ''
 
   // bid.js의 submitBid 함수를 사용하여 입찰 처리 (유효성 검사 및 API 호출 포함)
   const result = await submitBid(goods.value.goodsId, amount, {
@@ -300,12 +419,20 @@ async function handleBid() {
     auctionStatus: goods.value.auctionStatus
   })
 
+  submittingBid.value = false
+
   if (result.success) {
+    closeBidModal()
     alert('입찰이 완료되었습니다.')
     await fetchGoodsDetail()
   } else {
-    alert(result.message || '입찰에 실패했습니다.')
+    bidErrorMessage.value = result.message || '입찰에 실패했습니다.'
   }
+}
+
+// handleBid는 모달 열기로 변경
+function handleBid() {
+  openBidModal()
 }
 
 async function toggleWishlist() {
@@ -342,16 +469,36 @@ async function handleDelete() {
   }
 }
 
-async function handleStopAuction() {
-  if (!confirm('경매를 중지하시겠습니까? 참여자들에게 예치금이 환원됩니다.')) return
+function openStopModal() {
+  showStopModal.value = true
+  stopErrorMessage.value = ''
+}
+
+function closeStopModal() {
+  showStopModal.value = false
+  stopErrorMessage.value = ''
+}
+
+async function confirmStopAuction() {
+  stoppingAuction.value = true
+  stopErrorMessage.value = ''
 
   const result = await goodsStore.stopAuction(goods.value.goodsId)
+  
+  stoppingAuction.value = false
+
   if (result.success) {
+    closeStopModal()
     alert('경매가 중지되었습니다.')
     await fetchGoodsDetail()
   } else {
-    alert(result.message)
+    stopErrorMessage.value = result.message || '경매 중지에 실패했습니다.'
   }
+}
+
+// handleStopAuction은 모달 열기로 변경
+function handleStopAuction() {
+  openStopModal()
 }
 
 function handleReport() {
@@ -822,6 +969,217 @@ onMounted(() => {
   padding: 60px 20px;
   color: var(--text-light);
   font-size: 16px;
+}
+
+/* 입찰 모달 스타일 */
+.bid-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 16px;
+}
+
+.bid-modal {
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.bid-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.bid-header h3 {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text-dark);
+  margin: 0;
+}
+
+.close-btn {
+  border: none;
+  background: none;
+  font-size: 28px;
+  cursor: pointer;
+  color: var(--text-dark);
+  line-height: 1;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: var(--transition);
+}
+
+.close-btn:hover {
+  background: var(--bg-light);
+}
+
+.bid-info {
+  background: var(--bg-light);
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bid-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.bid-info-label {
+  font-size: 14px;
+  color: var(--text-gray);
+  font-weight: 500;
+}
+
+.bid-info-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-dark);
+}
+
+.bid-info-value.highlight {
+  color: var(--primary-red);
+  font-size: 20px;
+}
+
+.bid-info-value.required {
+  color: var(--primary-red);
+  font-size: 20px;
+}
+
+.bid-warning {
+  font-size: 13px;
+  color: var(--text-gray);
+  line-height: 1.6;
+  padding: 12px;
+  background: rgba(255, 71, 87, 0.08);
+  border-radius: 8px;
+  border-left: 3px solid var(--primary-red);
+}
+
+.bid-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bid-input-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.bid-input {
+  width: 100%;
+  border: 2px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 600;
+  transition: var(--transition);
+}
+
+.bid-input:focus {
+  outline: none;
+  border-color: var(--primary-red);
+  box-shadow: 0 0 0 3px rgba(255, 71, 87, 0.1);
+}
+
+.bid-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.cancel-btn {
+  flex: 1;
+  padding: 14px;
+  border: 2px solid var(--border-color);
+  background: white;
+  color: var(--text-dark);
+  border-radius: 10px;
+  font-weight: 700;
+  transition: var(--transition);
+}
+
+.cancel-btn:hover {
+  background: var(--bg-light);
+}
+
+.confirm-btn {
+  flex: 2;
+  padding: 14px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.error-message {
+  color: var(--primary-red);
+  font-size: 13px;
+  text-align: center;
+  margin-top: -8px;
+}
+
+/* 경매 중지 모달 스타일 */
+.stop-warning {
+  padding: 20px;
+  background: rgba(255, 71, 87, 0.1);
+  border-radius: 12px;
+  border: 2px solid rgba(255, 71, 87, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.warning-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--primary-red);
+  margin: 0;
+  text-align: center;
+}
+
+.warning-text {
+  font-size: 14px;
+  color: var(--text-gray);
+  line-height: 1.6;
+  margin: 0;
+  text-align: center;
+}
+
+.stop-confirm-btn {
+  background: var(--primary-red);
+}
+
+.stop-confirm-btn:hover:not(:disabled) {
+  background: #d32f2f;
 }
 
 @media (max-width: 968px) {
