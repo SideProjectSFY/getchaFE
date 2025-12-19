@@ -1,39 +1,39 @@
 .input-wrapper {
-  margin-top: 4px;
+margin-top: 4px;
 }
 .form-row {
-  display: flex;
-  gap: 20px;
-  flex-wrap: nowrap;
+display: flex;
+gap: 20px;
+flex-wrap: nowrap;
 }
 
 .flex-item {
-  flex: 1 1 0;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+flex: 1 1 0;
+display: flex;
+flex-direction: column;
+gap: 8px;
 }
 
 @media (max-width: 640px) {
-  .form-row {
-    flex-direction: column;
-    flex-wrap: wrap;
-  }
+.form-row {
+flex-direction: column;
+flex-wrap: wrap;
+}
 }
 
 <template>
   <div class="profile-page">
     <h1 class="page-title">정보 수정</h1>
-    
+
     <form @submit.prevent="handleSubmit" class="profile-form">
       <!-- 프로필 이미지 -->
       <div class="form-section">
         <label class="section-label">프로필 이미지</label>
         <div class="profile-image-section">
           <img
-            :src="displayProfileImage"
-            :alt="form.nickname"
-            class="profile-preview-img"
+              :src="displayProfileImage"
+              :alt="form.nickname"
+              class="profile-preview-img"
           />
           <p class="profile-note">관심 애니메이션을 수정하면 자동으로 변경됩니다</p>
         </div>
@@ -43,11 +43,11 @@
       <div class="form-section">
         <label class="section-label">닉네임 <span class="required">*</span></label>
         <input
-          v-model="form.nickname"
-          type="text"
-          required
-          placeholder="닉네임을 입력하세요"
-          class="form-input"
+            v-model="form.nickname"
+            type="text"
+            required
+            placeholder="닉네임을 입력하세요"
+            class="form-input"
         />
       </div>
 
@@ -70,10 +70,10 @@
           <div class="account-field">
             <label for="profileBank">계좌은행 <span class="required">*</span></label>
             <select
-              id="profileBank"
-              v-model="form.accountBank"
-              class="form-input select-input"
-              required
+                id="profileBank"
+                v-model="form.accountBank"
+                class="form-input select-input"
+                required
             >
               <option value="" disabled>은행을 선택하세요</option>
               <option v-for="bank in bankOptions" :key="bank" :value="bank">
@@ -84,35 +84,15 @@
           <div class="account-field">
             <label for="profileAccount">계좌번호 <span class="required">*</span></label>
             <input
-              id="profileAccount"
-              v-model="form.accountNumber"
-              type="text"
-              inputmode="numeric"
-              placeholder="숫자만 입력"
-              class="form-input"
-              required
+                id="profileAccount"
+                v-model="form.accountNumber"
+                type="text"
+                inputmode="numeric"
+                placeholder="숫자만 입력"
+                class="form-input"
+                required
             />
           </div>
-        </div>
-      </div>
-
-      <!-- 관심 카테고리 (수정 가능) -->
-      <div class="form-section">
-        <label class="section-label">관심 카테고리 (선택)</label>
-        <div class="category-checkboxes">
-          <label
-            v-for="category in categories"
-            :key="category"
-            class="checkbox-label"
-          >
-            <input
-              type="checkbox"
-              :value="category"
-              v-model="form.favoriteCategories"
-              class="checkbox-input"
-            />
-            <span>{{ category }}</span>
-          </label>
         </div>
       </div>
 
@@ -120,24 +100,24 @@
       <div class="form-section">
         <label class="section-label">관심 애니메이션 <span class="required">*</span> (3개 필수)</label>
         <AnimeSearch
-          v-model="form.favoriteAnimes"
-          :max="3"
-          @anime-selected="handleAnimeSelected"
+            v-model="form.favoriteAnimes"
+            :max="3"
+            @anime-selected="handleAnimeSelected"
         />
       </div>
 
       <div v-if="errorMessage" class="error-message">
         {{ errorMessage }}
       </div>
-  <div v-if="successMessage" class="success-message">
-    {{ successMessage }}
-  </div>
+      <div v-if="successMessage" class="success-message">
+        {{ successMessage }}
+      </div>
 
       <div class="form-actions">
         <button
-          type="submit"
-          class="btn-primary profile-submit-btn"
-          :disabled="loading || form.favoriteAnimes.length !== 3"
+            type="submit"
+            class="btn-primary profile-submit-btn"
+            :disabled="loading || form.favoriteAnimes.length !== 3"
         >
           {{ loading ? '수정 중...' : '수정하기' }}
         </button>
@@ -179,15 +159,15 @@ const initialAnimes = ref([])
 const displayProfileImage = computed(() => {
   const userFirst = user.value?.likedAnimes?.[0]
   const userPoster =
-    userFirst?.postUrl ||
-    userFirst?.posterUrl ||
-    userFirst?.poster_url ||
-    user.value?.profileImage
+      userFirst?.postUrl ||
+      userFirst?.posterUrl ||
+      userFirst?.poster_url ||
+      user.value?.profileImage
   return profileImage.value
-    || form.value.favoriteAnimes[0]?.coverImage?.large
-    || form.value.favoriteAnimes[0]?.coverImage?.medium
-    || userPoster
-    || '/placeholder.png'
+      || form.value.favoriteAnimes[0]?.coverImage?.large
+      || form.value.favoriteAnimes[0]?.coverImage?.medium
+      || userPoster
+      || '/placeholder.png'
 })
 
 const form = ref({
@@ -231,23 +211,23 @@ function handleAnimeSelected(anime) {
 }
 
 watch(
-  () => form.value.favoriteAnimes,
-  (animes) => {
-    if (animes.length > 0) {
-      const first = animes[0]
-      profileImage.value = first.coverImage?.large || first.coverImage?.medium || profileImage.value
-    } else {
-      profileImage.value = user.value?.profileImage || ''
-    }
-  },
-  { deep: true, immediate: true }
+    () => form.value.favoriteAnimes,
+    (animes) => {
+      if (animes.length > 0) {
+        const first = animes[0]
+        profileImage.value = first.coverImage?.large || first.coverImage?.medium || profileImage.value
+      } else {
+        profileImage.value = user.value?.profileImage || ''
+      }
+    },
+    { deep: true, immediate: true }
 )
 
 async function handleSubmit() {
   const finalAnimes =
-    form.value.favoriteAnimes.length > 0
-      ? form.value.favoriteAnimes
-      : initialAnimes.value
+      form.value.favoriteAnimes.length > 0
+          ? form.value.favoriteAnimes
+          : initialAnimes.value
 
   if (!finalAnimes || finalAnimes.length !== 3) {
     errorMessage.value = '관심 애니메이션을 3개 모두 선택하거나 기존 3개를 유지해야 합니다.'
@@ -280,10 +260,10 @@ async function handleSubmit() {
     likedAnimeId2: finalAnimes[1]?.id,
     likedAnimeId3: finalAnimes[2]?.id,
     profileImage:
-      profileImage.value ||
-      finalAnimes[0]?.coverImage?.large ||
-      finalAnimes[0]?.coverImage?.medium ||
-      ''
+        profileImage.value ||
+        finalAnimes[0]?.coverImage?.large ||
+        finalAnimes[0]?.coverImage?.medium ||
+        ''
   }
 
   const result = await authStore.updateProfile(profileData)
@@ -315,39 +295,39 @@ async function handleWithdraw() {
 }
 
 watch(
-  user,
-  (newUser) => {
-    if (!newUser) return
-    form.value.nickname = newUser.nickname || ''
-    const mapped = newUser.likedAnimes
-      ? newUser.likedAnimes.map(anime => ({
-          id: anime.animeId,
-          title: {
-            romaji: anime.title,
-            english: anime.title,
-            native: anime.title
-          },
-          coverImage: {
-            large: anime.postUrl || anime.posterUrl || anime.poster_url,
-            medium: anime.postUrl || anime.posterUrl || anime.poster_url
-          }
-        }))
-      : []
-    initialAnimes.value = mapped
-    form.value.favoriteAnimes = mapped
-    form.value.favoriteCategories = newUser.favoriteCategories ? [...newUser.favoriteCategories] : []
-    form.value.accountBank = newUser.accountBank || ''
-    form.value.accountNumber = newUser.accountNum || newUser.accountNumber || ''
-    form.value.profileImage = newUser.profileImage || ''
-    profileImage.value = newUser.profileImage
-      || mapped[0]?.coverImage?.large
-      || mapped[0]?.coverImage?.medium
-      || newUser.likedAnimes?.[0]?.postUrl
-      || newUser.likedAnimes?.[0]?.posterUrl
-      || newUser.likedAnimes?.[0]?.poster_url
-      || ''
-  },
-  { immediate: true }
+    user,
+    (newUser) => {
+      if (!newUser) return
+      form.value.nickname = newUser.nickname || ''
+      const mapped = newUser.likedAnimes
+          ? newUser.likedAnimes.map(anime => ({
+            id: anime.animeId,
+            title: {
+              romaji: anime.title,
+              english: anime.title,
+              native: anime.title
+            },
+            coverImage: {
+              large: anime.postUrl || anime.posterUrl || anime.poster_url,
+              medium: anime.postUrl || anime.posterUrl || anime.poster_url
+            }
+          }))
+          : []
+      initialAnimes.value = mapped
+      form.value.favoriteAnimes = mapped
+      form.value.favoriteCategories = newUser.favoriteCategories ? [...newUser.favoriteCategories] : []
+      form.value.accountBank = newUser.accountBank || ''
+      form.value.accountNumber = newUser.accountNum || newUser.accountNumber || ''
+      form.value.profileImage = newUser.profileImage || ''
+      profileImage.value = newUser.profileImage
+          || mapped[0]?.coverImage?.large
+          || mapped[0]?.coverImage?.medium
+          || newUser.likedAnimes?.[0]?.postUrl
+          || newUser.likedAnimes?.[0]?.posterUrl
+          || newUser.likedAnimes?.[0]?.poster_url
+          || ''
+    },
+    { immediate: true }
 )
 </script>
 
