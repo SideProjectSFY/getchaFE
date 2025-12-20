@@ -35,13 +35,13 @@
               <template v-else>
                 <div class="main-placeholder">
                   <p>이미지를 업로드하면 크게 미리보기로 보여집니다.</p>
-                  <span>최대 10장의 이미지를 등록할 수 있어요.</span>
+                  <span>최대 5장의 이미지를 등록할 수 있어요.</span>
                 </div>
               </template>
             </div>
 
             <div class="upload-row">
-              <label v-if="allImages.length < 10" class="upload-btn large-upload">
+              <label v-if="allImages.length < 5" class="upload-btn large-upload">
                 <input
                   type="file"
                   accept="image/*"
@@ -146,7 +146,7 @@
         </div>
 
         <div class="form-actions">
-          <router-link :to="`/goods/${goods.goodsId}`" class="btn-outline">취소</router-link>
+          <router-link to="/goods" class="btn-outline">취소</router-link>
           <button type="submit" class="btn-primary" :disabled="loading">
             {{ loading ? '수정 중...' : '수정하기' }}
           </button>
@@ -161,13 +161,16 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useGoodsStore } from '../../stores/goods'
 import AnimeSearch from '../../components/AnimeSearch.vue'
-import { readFilesAsDataURL } from '../../utils/imageFile'
+import { readFilesAsDataURL, validateFileSizes } from '../../utils/imageFile'
 import { CATEGORY_REVERSE_MAP } from '../../utils/category'
 
 const route = useRoute()
 const router = useRouter()
 const goodsStore = useGoodsStore()
 
+/**
+ * 'ALL' 카테고리를 제외한 카테고리 목록을 반환하는 computed 속성
+ */
 const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
 
 const loading = ref(true)
@@ -192,11 +195,19 @@ const form = ref({
   duration: null
 })
 
+/**
+ * 기존 이미지와 새로 업로드한 이미지를 합친 전체 이미지 목록을 반환하는 computed 속성
+ * 각 이미지는 type('existing' 또는 'new')과 url을 포함
+ */
 const allImages = computed(() => [
   ...existingImages.value.map(img => ({ type: 'existing', url: img.filePath || img.url, imageId: img.imageId })),
   ...form.value.images.map(img => ({ type: 'new', url: img.preview }))
 ])
 
+/**
+ * 안전한 메인 이미지 인덱스를 반환하는 computed 속성
+ * 인덱스가 유효하지 않으면 마지막 이미지 인덱스를 반환
+ */
 const safeMainIndex = computed(() => {
   if (!allImages.value.length) return -1
   if (mainImageIndex.value >= 0 && mainImageIndex.value < allImages.value.length) {
@@ -205,11 +216,19 @@ const safeMainIndex = computed(() => {
   return allImages.value.length - 1
 })
 
+/**
+ * 현재 선택된 메인 이미지를 반환하는 computed 속성
+ */
 const currentMainImage = computed(() => {
   const idx = safeMainIndex.value
   return idx >= 0 ? allImages.value[idx] : null
 })
 
+/**
+ * 서버에서 굿즈 상세 정보를 가져와서 폼에 채우는 함수
+ * 이미지 정보를 existingImages와 originalImageList에 초기화
+ * 카테고리를 한글로 변환하고 폼 데이터를 설정
+ */
 async function fetchGoods() {
   loading.value = true
   const result = await goodsStore.fetchGoodsDetail(route.params.id)
@@ -271,33 +290,62 @@ async function fetchGoods() {
   loading.value = false
 }
 
+/**
+ * 이미지 파일 업로드 처리 함수
+ * 최대 5장까지 업로드 가능하며, readFilesAsDataURL을 사용하여 미리보기 생성
+ * 업로드된 이미지는 form.value.images에 추가됨
+ * 파일당 최대 10MB, 여러 파일 업로드 시 전체 합계 최대 20MB 제한
+ */
 async function handleImageUpload(event) {
   const files = Array.from(event.target.files)
-  const remainingSlots = 10 - (existingImages.value.length + form.value.images.length)
+  const remainingSlots = 5 - (existingImages.value.length + form.value.images.length)
   const filesToAdd = files.slice(0, remainingSlots)
   
   if (filesToAdd.length === 0) return
+
+  // 파일 크기 검증 (파일당 10MB, 전체 합계 20MB)
+  const MAX_SIZE_PER_FILE = 10 * 1024 * 1024 // 10MB
+  const MAX_TOTAL_SIZE = filesToAdd.length > 1 ? 20 * 1024 * 1024 : null // 여러 파일일 때만 전체 합계 제한
+  
+  const validation = validateFileSizes(filesToAdd, MAX_SIZE_PER_FILE, MAX_TOTAL_SIZE)
+  if (!validation.valid) {
+    errorMessage.value = validation.message || '파일 크기가 너무 큽니다.'
+    return
+  }
 
   // 공통 로직 활용: readFilesAsDataURL 사용
   try {
     const newImagePreviews = await readFilesAsDataURL(filesToAdd)
     form.value.images.push(...newImagePreviews)
     mainImageIndex.value = allImages.value.length - 1
+    errorMessage.value = '' // 성공 시 에러 메시지 초기화
   } catch (error) {
     errorMessage.value = '이미지 파일을 읽는 중 오류가 발생했습니다.'
   }
 }
 
+/**
+ * 새로 업로드한 이미지를 제거하는 함수
+ * form.value.images에서 해당 인덱스의 이미지를 삭제하고 메인 이미지 인덱스 조정
+ */
 function removeImage(index) {
   form.value.images.splice(index, 1)
   adjustMainAfterRemove(existingImages.value.length + index)
 }
 
+/**
+ * 기존 이미지를 제거하는 함수
+ * existingImages에서 해당 인덱스의 이미지를 삭제하고 메인 이미지 인덱스 조정
+ */
 function removeExistingImage(index) {
   existingImages.value.splice(index, 1)
   adjustMainAfterRemove(index)
 }
 
+/**
+ * 인덱스에 따라 기존 이미지 또는 새 이미지를 제거하는 통합 함수
+ * 인덱스가 existingImages 길이보다 작으면 기존 이미지, 그 외에는 새 이미지 제거
+ */
 function removeByIndex(index) {
   if (index < existingImages.value.length) {
     removeExistingImage(index)
@@ -306,12 +354,20 @@ function removeByIndex(index) {
   }
 }
 
+/**
+ * 현재 선택된 메인 이미지를 제거하는 함수
+ * safeMainIndex를 기준으로 해당 이미지를 제거
+ */
 function removeByMainIndex() {
   if (safeMainIndex.value >= 0) {
     removeByIndex(safeMainIndex.value)
   }
 }
 
+/**
+ * 이미지 제거 후 메인 이미지 인덱스를 조정하는 함수
+ * 제거된 인덱스가 메인 이미지 인덱스보다 작거나 같으면 인덱스를 조정
+ */
 function adjustMainAfterRemove(removedIndex) {
   if (!allImages.value.length) {
     mainImageIndex.value = -1
@@ -324,15 +380,29 @@ function adjustMainAfterRemove(removedIndex) {
   }
 }
 
+/**
+ * 메인 이미지를 선택하는 함수
+ * 선택된 인덱스를 mainImageIndex에 저장
+ */
 function selectMainImage(index) {
   mainImageIndex.value = index
 }
 
+/**
+ * 애니메이션 선택 핸들러
+ * 선택된 애니메이션의 ID와 제목을 폼에 저장
+ */
 function handleAnimeSelected(anime) {
   form.value.animeId = anime.id
   form.value.animeTitle = anime.title.romaji || anime.title.english
 }
 
+/**
+ * 폼 제출 처리 함수
+ * 입력값 유효성 검사 후, 삭제된 이미지 ID 추적 및 existingImages 정리
+ * goodsStore.updateGoods를 호출하여 서버에 수정 요청
+ * 성공 시 굿즈 상세 페이지로 이동
+ */
 async function handleSubmit() {
   // 기본적인 UI 레벨 검증 (빠른 피드백 제공)
   if (!form.value.title.trim()) {
