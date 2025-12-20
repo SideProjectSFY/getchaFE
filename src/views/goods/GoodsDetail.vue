@@ -278,7 +278,6 @@ import { useGoodsStore } from '../../stores/goods'
 import { formatPrice, formatTimeRemaining, formatAuctionStatus} from '../../utils/format'
 import { getImageUrl } from '../../utils/image'
 import CommentList from '../../components/CommentList.vue'
-import api from '../../services/api'
 import { useTimeRemaining } from '../../composables/useTimeRemaining'
 import { submitBid } from '../../services/bid'
 import { CATEGORY_REVERSE_MAP } from '../../utils/category'
@@ -303,11 +302,25 @@ const showStopModal = ref(false)
 const stopErrorMessage = ref('')
 const stoppingAuction = ref(false)
 
+/**
+ * 인증 상태를 확인하는 computed 속성
+ */
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+/**
+ * 현재 사용자가 굿즈 소유자인지 확인하는 computed 속성
+ */
 const isOwner = computed(() => goods.value?.checkSeller || false)
+
+/**
+ * 현재 굿즈가 찜 목록에 있는지 확인하는 computed 속성
+ */
 const isWishlisted = computed(() => goods.value?.checkWish || false)
 
-// 최소 입찰 금액 계산
+/**
+ * 최소 입찰 금액을 계산하는 computed 속성
+ * 첫 입찰인 경우 시작가, 그 외에는 현재 입찰가보다 높은 금액(천원 단위로 올림)
+ */
 const minBidAmount = computed(() => {
   if (!goods.value) return 0
   
@@ -324,7 +337,9 @@ const minBidAmount = computed(() => {
   }
 })
 
-// 카테고리 영문값을 한글로 변환
+/**
+ * 카테고리 영문값을 한글로 변환하는 computed 속성
+ */
 const categoryDisplay = computed(() => {
   if (!goods.value?.category) return ''
   return CATEGORY_REVERSE_MAP[goods.value.category] || goods.value.category
@@ -336,6 +351,11 @@ const { timeRemaining, startTimer } = useTimeRemaining({
   auctionStatus: computed(() => goods.value?.auctionStatus)
 })
 
+/**
+ * 굿즈 상세 정보를 서버에서 가져오는 함수
+ * 로그인이 필요한 경우(403 에러) 로그인 페이지로 리다이렉트
+ * 성공 시 goods 상태를 업데이트하고 타이머를 재시작
+ */
 async function fetchGoodsDetail() {
   loading.value = true
   const result = await goodsStore.fetchGoodsDetail(route.query.goodsId)
@@ -365,6 +385,11 @@ async function fetchGoodsDetail() {
   loading.value = false
 }
 
+/**
+ * 입찰 모달을 여는 함수
+ * 로그인하지 않은 경우 로그인 페이지로 리다이렉트
+ * 모달이 열리면 최소 입찰 금액으로 초기화하고 입력 필드에 포커스
+ */
 async function openBidModal() {
   if (!isAuthenticated.value) {
     alert('로그인이 필요합니다.')
@@ -385,12 +410,22 @@ async function openBidModal() {
   }
 }
 
+/**
+ * 입찰 모달을 닫는 함수
+ * 모달 상태와 입력값, 에러 메시지를 초기화
+ */
 function closeBidModal() {
   showBidModal.value = false
   bidAmount.value = null
   bidErrorMessage.value = ''
 }
 
+/**
+ * 입찰을 확정하는 함수
+ * 입력값 유효성 검사 후 submitBid 서비스를 통해 입찰 처리
+ * 성공 시 모달을 닫고 상세 정보를 새로고침
+ * 실패 시 에러 메시지를 표시
+ */
 async function confirmBid() {
   if (!bidAmount.value || bidAmount.value <= 0) {
     bidErrorMessage.value = '올바른 금액을 입력해주세요.'
@@ -430,11 +465,20 @@ async function confirmBid() {
   }
 }
 
-// handleBid는 모달 열기로 변경
+/**
+ * 입찰하기 버튼 클릭 핸들러
+ * 입찰 모달을 여는 함수를 호출
+ */
 function handleBid() {
   openBidModal()
 }
 
+/**
+ * 찜하기/찜 해제 토글 함수
+ * 로그인하지 않은 경우 로그인 페이지로 리다이렉트
+ * goodsStore의 toggleWishlist를 호출하여 찜 상태를 변경
+ * 성공 시 상세 정보를 새로고침하여 최신 상태 반영
+ */
 async function toggleWishlist() {
   if (!isAuthenticated.value) {
     alert('로그인이 필요합니다.')
@@ -457,6 +501,11 @@ async function toggleWishlist() {
   }
 }
 
+/**
+ * 굿즈 삭제 처리 함수
+ * 사용자 확인 후 goodsStore의 deleteGoods를 호출하여 삭제
+ * 성공 시 굿즈 목록 페이지로 이동
+ */
 async function handleDelete() {
   if (!confirm('정말 삭제하시겠습니까?')) return
 
@@ -469,16 +518,30 @@ async function handleDelete() {
   }
 }
 
+/**
+ * 경매 중지 모달을 여는 함수
+ * 모달 상태를 표시하고 에러 메시지를 초기화
+ */
 function openStopModal() {
   showStopModal.value = true
   stopErrorMessage.value = ''
 }
 
+/**
+ * 경매 중지 모달을 닫는 함수
+ * 모달 상태와 에러 메시지를 초기화
+ */
 function closeStopModal() {
   showStopModal.value = false
   stopErrorMessage.value = ''
 }
 
+/**
+ * 경매 중지를 확정하는 함수
+ * goodsStore의 stopAuction을 호출하여 경매를 중지
+ * 성공 시 모달을 닫고 상세 정보를 새로고침
+ * 실패 시 에러 메시지를 표시
+ */
 async function confirmStopAuction() {
   stoppingAuction.value = true
   stopErrorMessage.value = ''
@@ -496,15 +559,26 @@ async function confirmStopAuction() {
   }
 }
 
-// handleStopAuction은 모달 열기로 변경
+/**
+ * 경매 중지 버튼 클릭 핸들러
+ * 경매 중지 모달을 여는 함수를 호출
+ */
 function handleStopAuction() {
   openStopModal()
 }
 
+/**
+ * 굿즈 신고 처리 함수
+ * 현재는 알림만 표시 (추후 구현 예정)
+ */
 function handleReport() {
   alert('신고가 접수되었습니다.')
 }
 
+/**
+ * 사용자 신고 처리 함수
+ * 현재는 알림만 표시 (추후 구현 예정)
+ */
 function handleReportUser() {
   alert('신고가 접수되었습니다.')
 }

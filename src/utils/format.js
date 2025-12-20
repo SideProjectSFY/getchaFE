@@ -84,20 +84,4 @@ export function getDisplayPrice(goods) {
   return currentBidAmount || startPrice || 0
 }
 
-/**
- * 굿즈 가격 라벨 표시 (시작가/현재 입찰가)
- */
-export function getPriceLabel(goods) {
-  if (!goods) return '시작가'
-  
-  const { currentBidAmount, auctionStatus } = goods
-  
-  // currentBidAmount가 null이고 auctionStatus가 WAIT 또는 STOPPED일 경우 "시작가"
-  if (currentBidAmount === null && (auctionStatus === 'WAIT' || auctionStatus === 'STOPPED')) {
-    return '시작가'
-  }
-  
-  // 그 외의 경우 "현재 입찰가"
-  return currentBidAmount ? '현재 입찰가' : '시작가'
-}
 

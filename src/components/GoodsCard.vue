@@ -78,11 +78,7 @@ const goodsStore = useGoodsStore()
 
 // 백엔드에서 받은 checkWish 값으로 찜 상태 확인
 const isWishlisted = computed(() => {
-  const result = props.goods.checkWish === true
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:71',message:'isWishlisted computed',data:{goodsId:props.goods.goodsId,checkWish:props.goods.checkWish,isWishlisted:result,wishCount:props.goods.wishCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-  // #endregion
-  return result
+  return props.goods.checkWish === true
 })
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
@@ -93,9 +89,6 @@ const { timeRemaining } = useTimeRemaining({
 })
 
 async function toggleWishlist() {
-  // #region agent log
-  fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:80',message:'toggleWishlist called',data:{goodsId:props.goods.goodsId,currentCheckWish:props.goods.checkWish,hasAdditionalLists:!!props.additionalLists,additionalListsLength:props.additionalLists?.length||0,additionalListsType:Array.isArray(props.additionalLists)?'array':typeof props.additionalLists},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-  // #endregion
   if (!isAuthenticated.value) {
     alert('로그인이 필요합니다.')
     router.push('/login')
@@ -105,38 +98,21 @@ async function toggleWishlist() {
   // 현재 checkWish 상태를 전달하여 올바른 요청(POST/DELETE)이 가도록 함
   // additionalLists가 있으면 wishStore를 직접 호출하여 추가 리스트도 업데이트
   if (props.additionalLists && props.additionalLists.length > 0) {
-    // #region agent log
-    const additionalListsInfo = props.additionalLists.map((l, i) => ({
-      index: i,
-      hasValue: !!(l && typeof l === 'object' && 'value' in l),
-      valueType: l?.value ? (Array.isArray(l.value) ? 'array' : typeof l.value) : 'no-value'
-    }))
-    fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:89',message:'Using additionalLists path',data:{additionalLists:additionalListsInfo,firstListValueLength:props.additionalLists[0]?.value?.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const { useWishStore } = await import('../stores/wish')
     const wishStore = useWishStore()
     const { useGoodsStore } = await import('../stores/goods')
     const goodsStore = useGoodsStore()
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:95',message:'Calling wishStore.toggleWishlist',data:{goodsId:props.goods.goodsId,currentCheckWish:props.goods.checkWish,additionalListsCount:props.additionalLists.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const result = await wishStore.toggleWishlist(props.goods.goodsId, props.goods.checkWish, {
       goodsList: goodsStore.goodsList,
       currentGoods: goodsStore.currentGoods,
       additionalLists: props.additionalLists
     })
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:100',message:'wishStore.toggleWishlist result',data:{success:result.success,checkWish:result.checkWish,wishCount:result.wishCount,propsGoodsCheckWish:props.goods.checkWish,propsGoodsWishCount:props.goods.wishCount},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
     if (!result.success) {
       alert(result.message || '찜하기 처리에 실패했습니다.')
     }
   } else {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/4299dcbd-548b-46fb-9efa-55e01b06bf81',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'GoodsCard.vue:104',message:'Using goodsStore.toggleWishlist path',data:{goodsId:props.goods.goodsId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
     const result = await goodsStore.toggleWishlist(props.goods.goodsId, props.goods.checkWish)
     
     if (!result.success) {

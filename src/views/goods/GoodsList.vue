@@ -51,7 +51,7 @@
           </div>
         </div>
 
-        <button @click="applyFilters(1, false)" class="filter-btn">필터 적용</button>
+        <button @click="applyFilters()" class="filter-btn">필터 적용</button>
       </div>
 
       <!-- 굿즈 그리드 -->
@@ -90,7 +90,14 @@ const route = useRoute()
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
 
+/**
+ * 인증 상태를 확인하는 computed 속성
+ */
 const isAuthenticated = computed(() => authStore.isAuthenticated)
+
+/**
+ * 카테고리 옵션 목록을 반환하는 computed 속성
+ */
 const categoryOptions = computed(() => goodsStore.categoryOptions)
 
 const pageSize = ref(20)
@@ -138,6 +145,10 @@ const {
   }
 )
 
+/**
+ * 필터를 적용하는 함수
+ * updateParams와 initialize를 호출하여 필터 변경 후 첫 페이지부터 다시 로드
+ */
 function applyFilters() {
   updateParams({})
   initialize()
@@ -147,6 +158,10 @@ onMounted(() => {
   initialize()
 })
 
+/**
+ * 라우트 쿼리 파라미터 변경 감지 watcher
+ * 쿼리 파라미터가 변경되면 필터를 업데이트하고 applyFilters 호출
+ */
 watch(() => route.query, (newQuery) => {
   filters.value = {
     auctionStatus: newQuery.auctionStatus || '',

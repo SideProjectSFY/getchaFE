@@ -225,43 +225,4 @@ export async function stopAuction(goodsId) {
   }
 }
 
-/**
- * 에러 코드에 따른 사용자 메시지 처리
- * 400 에러의 경우 다양한 메시지를 처리할 수 있도록 개선
- * 
- * 문제점:
- * - 400 에러 하나로 여러 가지 다른 의미의 에러를 처리하는 것은 RESTful API 설계 관점에서 좋지 않습니다.
- * - 각 에러 상황에 대해 별도의 HTTP 상태 코드나 에러 코드를 제공하는 것이 더 명확합니다.
- * - 예: 400 (Bad Request)는 클라이언트 요청 자체가 잘못된 경우,
- *       409 (Conflict)는 현재 최고 입찰자 재입찰 금지와 같은 비즈니스 로직 충돌,
- *       402 (Payment Required)는 잔액 부족과 같은 결제 관련 문제
- * 
- * 권장사항:
- * - 백엔드에서 더 세분화된 HTTP 상태 코드 사용 (409, 402 등)
- * - 또는 에러 응답에 errorCode 필드를 추가하여 구체적인 에러 타입 식별
- * 
- * @param {number} errorCode - HTTP 상태 코드
- * @param {string} message - 백엔드에서 전달된 메시지
- * @returns {string}
- */
-export function getBidErrorMessage(errorCode, message) {
-  // 백엔드에서 전달된 메시지가 있으면 그대로 사용
-  if (message) {
-    return message
-  }
-
-  // 메시지가 없는 경우 상태 코드에 따른 기본 메시지
-  switch (errorCode) {
-    case 400:
-      return '잘못된 요청입니다.'
-    case 403:
-      return '판매자는 자신의 굿즈에 입찰할 수 없습니다.'
-    case 404:
-      return '존재하지 않는 굿즈 또는 이미 종료된 경매입니다.'
-    case 500:
-      return '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
-    default:
-      return '입찰 처리 중 오류가 발생했습니다.'
-  }
-}
 
