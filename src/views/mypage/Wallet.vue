@@ -35,6 +35,55 @@
         </div>
       </div>
 
+      <div class="wallet-actions">
+        <button class="btn-primary open-charge-btn" @click="toggleCharge">
+          골드 충전하기
+        </button>
+      </div>
+
+      <!--모달 띄우기 -->
+      <div v-if="showCharge" class="charge-modal-backdrop" @click.self="toggleCharge">
+        <div class="charge-modal">
+          <div class="charge-header">
+            <h3>골드 충전</h3>
+            <button class="close-btn" @click="toggleCharge">×</button>
+          </div>
+          <p class="info-text">10,000 골드 단위로만 충전할 수 있습니다.</p>
+          <div class="amount-buttons">
+            <button
+              v-for="opt in amountOptions"
+              :key="opt"
+              type="button"
+              class="amount-btn"
+              :class="{ active: selectedAmount === opt }"
+              @click="selectAmount(opt)"
+            >
+              {{ formatPrice(opt) }}
+            </button>
+          </div>
+          <div class="custom-input">
+            <label for="customAmount">직접 입력 (10,000 단위)</label>
+            <input
+              id="customAmount"
+              type="number"
+              min="10000"
+              step="10000"
+              v-model.number="customAmount"
+              placeholder="예: 10000"
+            />
+          </div>
+          <button
+            class="btn-primary charge-btn"
+            :disabled="charging"
+            @click="handleCharge"
+          >
+            {{ charging ? '결제 진행 중...' : '결제하기' }}
+          </button>
+          <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
+          <p v-if="successMessage" class="success-message">{{ successMessage }}</p>
+        </div>
+      </div>
+
       <div class="wallet-info">
         <strong>알림</strong>
         <p class="info-text">
@@ -49,13 +98,30 @@
 import { ref, onMounted, computed } from 'vue'
 import { formatPrice } from '../../utils/format'
 import api from '../../services/api'
+import { useAuthStore } from '../../stores/auth'
 
+//로딩 상태. default true(로딩중)
 const loading = ref(true)
+//지갑 데이터(잔액/예치금)
 const wallet = ref({
   balance: 0,
   lockedAmount: 0
 })
+//탭 선택 영역. default 잔액
 const selectedStat = ref('balance')
+//고정 금액
+const amountOptions = [10000, 30000, 100000, 200000]
+//선택 금액
+const selectedAmount = ref(10000)
+const customAmount = ref(null)
+//결제 진행
+const charging = ref(false)
+const errorMessage = ref('')
+const successMessage = ref('')
+//로그인 정보
+const authStore = useAuthStore()
+//모달 열림/닫힘
+const showCharge = ref(false)
 
 const walletTabs = [
   { key: 'balance', label: '잔액' },
@@ -63,28 +129,156 @@ const walletTabs = [
   { key: 'total', label: '총 자산' }
 ]
 
+// 잔액/예치금 계산
 const displayAmount = computed(() => {
   if (selectedStat.value === 'balance') return wallet.value.balance || 0
   if (selectedStat.value === 'lockedAmount') return wallet.value.lockedAmount || 0
   return (wallet.value.balance || 0) + (wallet.value.lockedAmount || 0)
 })
 
+// 현재 선택한 탭의 label 반환
 const displayLabel = computed(() => {
   const tab = walletTabs.find(tab => tab.key === selectedStat.value)
   return tab ? tab.label : ''
 })
 
+// 서버에서 지갑 정보 가져오기
 async function fetchWallet() {
   loading.value = true
   try {
     const response = await api.get('/wallet')
-    wallet.value = response.data
+    const payload = response.data?.data || response.data || {}
+    wallet.value = payload
   } catch (error) {
     console.error('자산 현황 로딩 실패:', error)
   }
   loading.value = false
 }
 
+// 금액 버튼 눌렀을 경우 (고정 금액 선택 시!)
+function selectAmount(amount) {
+  selectedAmount.value = amount
+  customAmount.value = null
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+// 모달 열기/닫기
+function toggleCharge() {
+  showCharge.value = !showCharge.value
+  errorMessage.value = ''
+  successMessage.value = ''
+}
+
+// 최종 결제 금액
+function getFinalAmount() {
+  const custom = customAmount.value
+  // 직접 입력했고, 숫자면 -> 직접 입력 값 사용
+  if (custom && Number.isFinite(custom)) {
+    return custom
+  }
+  return selectedAmount.value
+}
+
+// 결제 SDK 로드
+async function loadPortOneScript() {
+  if (window.IMP) return
+  // 로딩 성공/실패
+  await new Promise((resolve, reject) => {
+    // script 생성해서 띄우기
+    const script = document.createElement('script')
+    script.src = 'https://cdn.iamport.kr/js/iamport.payment-1.2.0.js'
+    script.onload = resolve
+    script.onerror = reject
+    document.head.appendChild(script)
+  })
+}
+
+async function handleCharge() {
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  //로그인 체크
+  if (!authStore.isAuthenticated) {
+    errorMessage.value = '로그인이 필요합니다.'
+    return
+  }
+
+  //금액 검증
+  const amount = getFinalAmount()
+  if (!amount || amount < 10000 || amount % 10000 !== 0) {
+    errorMessage.value = '10,000 골드 단위로 입력해주세요.'
+    return
+  }
+
+  charging.value = true
+
+  // 결제 SDK 로딩 + 결제 준비
+  try {
+    await loadPortOneScript()
+    const { IMP } = window
+    const merchantId = 'imp00455537'
+
+    // 1) 결제 준비: 백엔드 서버가 merchantUid 발급
+    const prepareRes = await api.post('/payments/wallet/prepare', { amount })
+    const preparePayload = prepareRes.data?.data || prepareRes.data || {}
+    const merchantUid = preparePayload.merchantUid
+
+    if (!merchantUid) {
+      throw new Error('merchantUid를 받을 수 없습니다.')
+    }
+
+    // 2) 포트원 결제창 호출
+    IMP.init(merchantId)
+    await new Promise((resolve, reject) => {
+      // 결제창
+      IMP.request_pay(
+        {
+          // KG이니시스 테스트 PG 
+          pg: 'html5_inicis.INIpayTest',
+          pay_method: 'card',
+          merchant_uid: merchantUid,
+          name: '골드 충전',
+          amount,
+          buyer_email: authStore.user?.email,
+          buyer_name: authStore.user?.nickname
+        },
+          // 결과
+        async (rsp) => {
+          if (!rsp.success) {
+            reject(new Error(rsp.error_msg || '결제가 취소되었거나 실패했습니다.'))
+            return
+          }
+          try {
+            // 3) 성공이면 서버에 결제 검증
+            const completeRes = await api.post('/payments/wallet/complete', {
+              merchantUid,
+              impUid: rsp.imp_uid //포트원 고유 결제 번호
+            })
+            const completePayload = completeRes.data?.data || completeRes.data || {}
+            if (completePayload.status !== 'PAID') {
+              reject(new Error(completePayload.failReason || '결제 검증에 실패했습니다.'))
+              return
+            }
+            // 성공 UI + 잔액 재조회
+            successMessage.value = `충전 완료! 현재 잔액: ${formatPrice(completePayload.walletBalance || 0)}`
+            await fetchWallet()
+            resolve()
+          } catch (err) {
+            reject(err)
+          }
+        }
+      )
+    })
+  } catch (err) {
+    console.error(err)
+    errorMessage.value = err?.message || '결제 처리 중 오류가 발생했습니다.'
+  } finally {
+    charging.value = false
+  }
+}
+
+// 처음 로딩 시 지갑 조회
 onMounted(() => {
   fetchWallet()
 })
@@ -255,6 +449,120 @@ onMounted(() => {
   font-size: 14px;
   color: var(--text-gray);
   line-height: 1.7;
+}
+
+.wallet-actions {
+  margin-top: 32px;
+}
+
+.charge-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1500;
+  padding: 16px;
+}
+
+.charge-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.charge-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.close-btn {
+  border: none;
+  background: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+
+.charge-card {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.amount-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.amount-btn {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 14px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #ffffff 0%, #fff7f9 100%);
+  font-weight: 800;
+  color: var(--text-dark);
+  transition: var(--transition);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.06);
+  text-align: left;
+}
+
+.amount-btn.active {
+  border-color: rgba(255, 71, 87, 0.4);
+  color: var(--primary-red);
+  box-shadow: 0 8px 18px rgba(255, 71, 87, 0.15);
+  background: linear-gradient(135deg, #fff0f4 0%, #ffe6ec 100%);
+}
+
+.amount-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.custom-input {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-input input {
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.charge-btn {
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 12px;
+  font-weight: 800;
+}
+
+.error-message {
+  color: var(--primary-red);
+  font-size: 13px;
+}
+
+.success-message {
+  color: #00b85e;
+  font-size: 13px;
 }
 
 .loading {
