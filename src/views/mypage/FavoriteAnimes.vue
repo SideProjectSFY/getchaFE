@@ -3,17 +3,20 @@
     <h1 class="page-title">관심 애니메이션</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
+    <!-- favoriteAnimes 배열에 1개 이상 있을 때의 애니 목록 -->
     <div v-else-if="favoriteAnimes.length > 0" class="animes-grid">
       <div
         v-for="anime in favoriteAnimes"
         :key="anime.id"
         class="anime-card"
       >
+        <!-- 애니메이션 포스터 이미지 -->
         <img
           :src="anime.coverImage?.large || '/placeholder.png'"
           :alt="anime.title.romaji"
           class="anime-cover"
         />
+        <!-- 애니메이션 정보 -->
         <div class="anime-info">
           <h3 class="anime-title">{{ anime.title.romaji || anime.title.english }}</h3>
           <p class="anime-genres">{{ anime.genres?.slice(0, 3).join(', ') }}</p>
@@ -33,8 +36,10 @@ import api from '../../services/api'
 
 const authStore = useAuthStore()
 const loading = ref(true)
+// 관심 애니메이션 목록
 const favoriteAnimes = ref([])
 
+// 관심 애니메이션 조회 함수
 async function fetchFavoriteAnimes() {
   loading.value = true
   try {
@@ -42,13 +47,15 @@ async function fetchFavoriteAnimes() {
     const payload = response.data?.data || response.data || []
     favoriteAnimes.value = mapAnimes(payload)
   } catch (error) {
-    // API 실패 시 내 정보에 저장된 관심 애니로 대체
+    // API 호출 실패 시 보험
+    // 서버 호출 실패 시 로그인 시 저장된 사용자 정보(authStore.user) 안의 likeAnimes 로 사용
     favoriteAnimes.value = mapAnimes(authStore.user?.likedAnimes || [])
     console.error('관심 애니메이션 로딩 실패:', error)
   }
   loading.value = false
 }
 
+// 서버에서 받은 애니 데이터 공통 형태로 반환
 function mapAnimes(list) {
   if (!Array.isArray(list)) return []
   return list.map(anime => ({
@@ -59,8 +66,8 @@ function mapAnimes(list) {
       native: anime.title
     },
     coverImage: {
-      large: anime.postUrl || anime.posterUrl || anime.poster_url,
-      medium: anime.postUrl || anime.posterUrl || anime.poster_url
+      large:  anime.posterUrl || anime.poster_url,
+      medium: anime.posterUrl || anime.poster_url
     },
     genres: anime.genres || []
   }))

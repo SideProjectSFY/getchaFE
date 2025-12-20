@@ -65,19 +65,17 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'anime-selected'])
 
-// 입력값, 검색 결과, 선택된 목록
+// 관심 애니메이션 검색창
 const searchTerm = ref('')
+// 검색 결과 목록
 const searchResults = ref([])
+// 선택된 애니 목록
 const selectedAnimes = ref([...props.modelValue])
+// 검색 결과 X
 const noResults = ref(false)
-
+// 검색 타이머
 let searchTimeout = null
 
-function matchesQuery(anime, query) {
-  return ['romaji', 'english', 'native'].some((key) =>
-    anime.title?.[key]?.toLowerCase().includes(query)
-  )
-}
 
 // 백엔드에 keyword로 검색 요청
 async function executeSearch() {
@@ -93,9 +91,10 @@ async function executeSearch() {
     const results = (payload || []).map((item) => ({
       id: item.animeId,
       title: { romaji: item.title, english: item.title, native: item.title },
-      coverImage: { large: item.postUrl, medium: item.postUrl },
-      description: item.title
+      coverImage: { large: item.posterUrl, medium: item.posterUrl },
+      description: item.overview || item.title //줄거리가 없으면 제목으로 대체해서 입력
     }))
+    //최대 10개
     searchResults.value = results.slice(0, 10)
     noResults.value = searchResults.value.length === 0
   } catch (e) {
@@ -104,8 +103,9 @@ async function executeSearch() {
   }
 }
 
-// 입력 중 debounce 300ms 후 검색
+// 입력 중 100ms 기다린 후 검색
 function handleSearch() {
+  // 이전에 검색하던게 있으면 취소
   if (searchTimeout) {
     clearTimeout(searchTimeout)
   }
@@ -116,9 +116,10 @@ function handleSearch() {
     return
   }
 
+  // 100ms 동안 입력이 없으면 검색 실행 하도록
   searchTimeout = setTimeout(async () => {
     await executeSearch()
-  }, 300)
+  }, 100)
 }
 
 // 엔터 입력 시 즉시 검색
@@ -135,7 +136,9 @@ async function handleEnter() {
   await executeSearch()
 }
 
+// 관심 애니메이션 선택
 function selectAnime(anime) {
+  // 이미 누른거 다시 선택하면 해제
   if (isSelected(anime.id)) {
     removeAnime(anime.id)
     return
@@ -153,11 +156,13 @@ function selectAnime(anime) {
   searchResults.value = []
 }
 
+// 선택 목록 삭제
 function removeAnime(animeId) {
   selectedAnimes.value = selectedAnimes.value.filter(a => a.id !== animeId)
   emit('update:modelValue', selectedAnimes.value)
 }
 
+// 특정 animeId가 선택 목록에 있는 지?
 function isSelected(animeId) {
   return selectedAnimes.value.some(a => a.id === animeId)
 }

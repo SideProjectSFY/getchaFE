@@ -100,9 +100,10 @@ flex-wrap: wrap;
       <div class="form-section">
         <label class="section-label">관심 애니메이션 <span class="required">*</span> (3개 필수)</label>
         <AnimeSearch
-            v-model="form.favoriteAnimes"
-            :max="3"
-            @anime-selected="handleAnimeSelected"
+          :key="animeKey"
+          v-model="form.favoriteAnimes"
+          :max="3"
+          @anime-selected="handleAnimeSelected"
         />
       </div>
 
@@ -149,25 +150,28 @@ const router = useRouter()
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
 
+// 로그인한 사용자 정보
 const user = computed(() => authStore.user)
 
+// UI 상태
 const loading = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
 const profileImage = ref('')
 const initialAnimes = ref([])
+
+// 프로필 이미지 설정
 const displayProfileImage = computed(() => {
   const userFirst = user.value?.likedAnimes?.[0]
   const userPoster =
-      userFirst?.postUrl ||
-      userFirst?.posterUrl ||
-      userFirst?.poster_url ||
-      user.value?.profileImage
+    userFirst?.posterUrl ||
+    userFirst?.poster_url ||
+    user.value?.profileImage
   return profileImage.value
-      || form.value.favoriteAnimes[0]?.coverImage?.large
-      || form.value.favoriteAnimes[0]?.coverImage?.medium
-      || userPoster
-      || '/placeholder.png'
+    || form.value.favoriteAnimes[0]?.coverImage?.large
+    || form.value.favoriteAnimes[0]?.coverImage?.medium
+    || userPoster
+    || '/placeholder.png'
 })
 
 const form = ref({
@@ -178,6 +182,13 @@ const form = ref({
   accountNumber: '',
   profileImage: ''
 })
+
+// favoriteAnimes를 서버 데이터로 통째로 교체할 때, AnimeSearch 내부 상태 꼬임을 막기 위해 key 변경으로 컴포넌트를 강제 초기화
+const animeKey = computed(() =>
+  (form.value.favoriteAnimes || [])
+    .map(a => a?.id ?? '')
+    .join('-') || 'empty'
+)
 
 const categories = computed(() => goodsStore.categories.filter(c => c !== 'ALL'))
 const bankOptions = [
@@ -204,12 +215,14 @@ const formattedAccountNumber = computed(() => {
   return acct
 })
 
+// 관심 애니메이션 선택 시 이미지 변경
 function handleAnimeSelected(anime) {
   if (anime.coverImage?.large) {
     profileImage.value = anime.coverImage.large
   }
 }
 
+// 관심 애니메이션 변경 감시
 watch(
     () => form.value.favoriteAnimes,
     (animes) => {
@@ -223,6 +236,7 @@ watch(
     { deep: true, immediate: true }
 )
 
+// 수정하기
 async function handleSubmit() {
   const finalAnimes =
       form.value.favoriteAnimes.length > 0
@@ -280,6 +294,7 @@ async function handleSubmit() {
   loading.value = false
 }
 
+// 회원 탈퇴
 async function handleWithdraw() {
   if (!confirm('정말 탈퇴하시겠습니까? 모든 데이터가 삭제되며 복구할 수 없습니다.')) {
     return
@@ -308,8 +323,8 @@ watch(
               native: anime.title
             },
             coverImage: {
-              large: anime.postUrl || anime.posterUrl || anime.poster_url,
-              medium: anime.postUrl || anime.posterUrl || anime.poster_url
+              large:  anime.posterUrl || anime.poster_url,
+              medium: anime.posterUrl || anime.poster_url
             }
           }))
           : []
@@ -322,7 +337,6 @@ watch(
       profileImage.value = newUser.profileImage
           || mapped[0]?.coverImage?.large
           || mapped[0]?.coverImage?.medium
-          || newUser.likedAnimes?.[0]?.postUrl
           || newUser.likedAnimes?.[0]?.posterUrl
           || newUser.likedAnimes?.[0]?.poster_url
           || ''
@@ -354,6 +368,7 @@ watch(
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-bottom: 16px;
 }
 
 .section-label {
@@ -421,6 +436,14 @@ watch(
   padding: 20px;
 }
 
+.nickname-section {
+  margin-bottom: 2px;
+}
+
+.info-section {
+  margin-top: -10px;
+}
+
 .info-row {
   display: flex;
   justify-content: space-between;
@@ -454,6 +477,10 @@ watch(
   gap: 20px;
   width: 100%;
   align-items: start;
+}
+
+.account-section {
+  margin-bottom: 16px;
 }
 
 .account-field {
