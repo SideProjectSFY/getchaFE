@@ -93,7 +93,7 @@ async function executeSearch() {
     const results = (payload || []).map((item) => ({
       id: item.animeId,
       title: { romaji: item.title, english: item.title, native: item.title },
-      coverImage: { large: item.postUrl, medium: item.postUrl },
+      coverImage: { large: item.posterUrl, medium: item.posterUrl },
       description: item.title
     }))
     searchResults.value = results.slice(0, 10)
