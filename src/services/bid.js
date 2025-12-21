@@ -1,4 +1,5 @@
 import api from './api'
+import { extractResponseData } from '../utils/responseApi'
 
 /**
  * 입찰 금액 유효성 검사 (클라이언트 사이드 검증)
@@ -119,7 +120,7 @@ export async function placeBid(goodsId, bidAmount) {
 
     return {
       success: true,
-      data: response.data?.data || response.data
+      data: extractResponseData(response)
     }
   } catch (error) {
     const status = error.response?.status
@@ -202,7 +203,7 @@ export async function stopAuction(goodsId) {
 
     return {
       success: true,
-      data: response.data?.data || response.data
+      data: extractResponseData(response)
     }
   } catch (error) {
     const status = error.response?.status

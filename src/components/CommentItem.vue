@@ -26,13 +26,6 @@
           삭제
         </button>
       </div>
-      <!-- <button
-        v-else-if="isOwner"
-        @click="handleDelete"
-        class="delete-comment-btn"
-      >
-        삭제
-      </button> -->
     </div>
     <div v-if="!isEditing" class="comment-content-wrapper">
       <p class="comment-content">{{ comment.content }}</p>
@@ -110,31 +103,60 @@ const props = defineProps({
 const emit = defineEmits(['reply', 'delete'])
 
 const authStore = useAuthStore()
+
+// 답글 작성 폼 표시 여부
 const showReplyForm = ref(false)
+// 답글 내용
 const replyContent = ref('')
+// 댓글 수정 모드 여부
 const isEditing = ref(false)
+// 수정 중인 댓글 내용
 const editContent = ref('')
+// 대댓글 전체 보기 여부 (5개 이상일 때)
 const showAllReplies = ref(false)
 
+/**
+ * 현재 사용자가 댓글 작성자인지 확인
+ * @returns {boolean} 작성자 여부
+ */
 const isOwner = computed(() => {
   return authStore.user && props.comment.writerId === authStore.user.id
 })
 
+/**
+ * 댓글 작성자가 판매자인지 확인
+ * @returns {boolean} 판매자 여부
+ */
 const isSeller = computed(() => {
   return props.sellerId && props.comment.writerId === props.sellerId
 })
 
-// 삭제된 댓글인지 확인 (soft delete: 대댓글이 있는 상태에서 삭제된 경우)
+/**
+ * 삭제된 댓글인지 확인 (soft delete: 대댓글이 있는 상태에서 삭제된 경우)
+ * 대댓글이 있으면 완전 삭제하지 않고 내용만 "(삭제된 댓글입니다.)"로 표시
+ * @returns {boolean} 삭제된 댓글 여부
+ */
 const isDeleted = computed(() => {
   return props.comment.content === '(삭제된 댓글입니다.)' && 
          props.comment.replyList && 
          props.comment.replyList.length > 0
 })
 
+/**
+ * 대댓글이 5개 이상이고 아직 전체 보기 모드가 아닐 때 "더보기" 버튼 표시 여부
+ * @returns {boolean} 더보기 버튼 표시 여부
+ */
 const hasMoreReplies = computed(() => {
   return props.comment.replyList && props.comment.replyList.length >= 5 && !showAllReplies.value
 })
 
+/**
+ * 화면에 표시할 대댓글 목록 계산
+ * - 5개 미만: 모두 표시
+ * - 5개 이상이고 "더보기" 클릭: 모두 표시
+ * - 5개 이상이고 "더보기" 미클릭: 빈 배열 (아무것도 표시 안 함)
+ * @returns {Array} 표시할 대댓글 배열
+ */
 const visibleReplies = computed(() => {
   if (!props.comment.replyList) return []
   // 5개 미만이면 모두 보여줌
@@ -149,7 +171,10 @@ const visibleReplies = computed(() => {
   return []
 })
 
-// 대댓글이 추가되어 5개 이상이 되면 자동으로 "더보기" 상태 활성화
+/**
+ * 대댓글 개수 변경 감지
+ * 대댓글이 추가되어 5개 이상이 되면 자동으로 "더보기" 상태 활성화
+ */
 watch(
   () => props.comment.replyList?.length,
   (newLength, oldLength) => {
@@ -160,16 +185,22 @@ watch(
   }
 )
 
+/**
+ * 대댓글 작성 처리 함수
+ * 백엔드에 대댓글 등록 요청 후, 부모 컴포넌트에 이벤트를 emit하여 댓글 목록 새로고침
+ */
 async function submitReply() {
   if (!replyContent.value.trim()) return
 
   try {
-    const response = await api.post('/comment', {
+    // 백엔드 응답 구조: { status, message, data: { commentId, parentId } }
+    // 응답 데이터는 사용하지 않음 (댓글 목록 새로고침으로 처리)
+    await api.post('/comment', {
       goodsId: props.goodsId,
       parentId: props.comment.commentId,
       content: replyContent.value
     })
-    // 백엔드 응답 구조: { status, message, data: { commentId, parentId } }
+    // 부모 컴포넌트에 이벤트 전달하여 댓글 목록 새로고침
     emit('reply', props.comment.commentId, replyContent.value)
     showReplyForm.value = false
     replyContent.value = ''
@@ -191,16 +222,29 @@ async function submitReply() {
   }
 }
 
+/**
+ * 댓글 수정 모드 시작
+ * 현재 댓글 내용을 수정 입력란에 복사하고 수정 모드로 전환
+ */
 function handleEdit() {
   editContent.value = props.comment.content
   isEditing.value = true
 }
 
+/**
+ * 댓글 수정 취소
+ * 수정 모드를 종료하고 입력 내용 초기화
+ */
 function cancelEdit() {
   isEditing.value = false
   editContent.value = ''
 }
 
+/**
+ * 댓글 수정 저장
+ * 백엔드에 수정 요청 후, 성공 시 로컬 상태 업데이트
+ * 실패 시 에러 메시지 표시
+ */
 async function saveEdit() {
   if (!editContent.value.trim()) {
     alert('댓글 내용을 입력해주세요.')
@@ -212,6 +256,7 @@ async function saveEdit() {
       content: editContent.value,
       commentId: props.comment.commentId
     })
+    // 수정 성공 시 로컬 상태 업데이트 (댓글 목록 새로고침 없이 즉시 반영)
     props.comment.content = editContent.value
     isEditing.value = false
     editContent.value = ''
@@ -228,13 +273,20 @@ async function saveEdit() {
   }
 }
 
+/**
+ * 댓글 삭제 처리 함수
+ * 사용자 확인 후 백엔드에 삭제 요청
+ * 삭제 성공 시 부모 컴포넌트에 이벤트를 emit하여 댓글 목록 새로고침
+ * 대댓글이 있으면 soft delete, 없으면 hard delete 처리됨
+ */
 async function handleDelete() {
   if (!confirm('댓글을 삭제하시겠습니까?')) return
 
   try {
-    const response = await api.delete(`/comment?commentId=${props.comment.commentId}`)
     // 백엔드 응답 구조: { status, message, data: { softDeletedId, hardDeletedIds } }
     // 응답 데이터는 사용하지 않음 (삭제 성공 후 목록 새로고침으로 처리)
+    await api.delete(`/comment?commentId=${props.comment.commentId}`)
+    // 부모 컴포넌트에 이벤트 전달하여 댓글 목록 새로고침
     emit('delete', props.comment.commentId)
   } catch (error) {
     if (error.response?.status === 403) {

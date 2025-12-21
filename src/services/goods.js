@@ -1,6 +1,7 @@
 import api from './api'
 import { CATEGORY_MAP } from '../utils/category'
 import { createGoodsFormData } from '../utils/imageFile'
+import { extractResponseData } from '../utils/responseApi'
 
 /**
  * 에러 응답에서 메시지 추출
@@ -43,7 +44,7 @@ export async function fetchGoodsList(filters = {}, page = 1, size = 10) {
     const response = await api.get('/goods/list', { params })
     
     // 응답 구조: response.data.data.items 또는 response.data.items
-    const responseData = response.data?.data || response.data
+    const responseData = extractResponseData(response)
     
     return {
       success: true,
@@ -89,7 +90,7 @@ export async function fetchGoodsDetail(goodsId) {
     }
 
     const response = await api.get('/goods', { params: { goodsId: goodsIdNum } })
-    const responseData = response.data?.data || response.data
+    const responseData = extractResponseData(response)
 
     return {
       success: true,
@@ -234,7 +235,7 @@ export async function registerGoods(goodsData) {
     })
 
     // 응답 데이터 추출 (goodsId 반환)
-    const responseData = response.data?.data || response.data
+    const responseData = extractResponseData(response)
 
     return {
       success: true,
@@ -350,7 +351,7 @@ export async function updateGoods(goodsId, goodsData) {
 
     return {
       success: true,
-      data: response.data?.data || response.data
+      data: extractResponseData(response)
     }
   } catch (error) {
     const status = error.response?.status

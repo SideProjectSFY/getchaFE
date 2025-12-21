@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import api from '../services/api'
-import { extractArrayResponse } from '../utils/responseApi'
+import { extractArrayResponse, extractResponseData } from '../utils/responseApi'
 
 export const useWishStore = defineStore('wish', () => {
   // 서버에서 받은 찜 목록 데이터
@@ -33,7 +33,7 @@ export const useWishStore = defineStore('wish', () => {
       if (isWishlisted) {
         // 찜 취소 - DELETE 요청
         const response = await api.delete('/wish', { params: { goodsId } })
-        const responseData = response.data?.data || response.data
+        const responseData = extractResponseData(response)
         const checkWish = responseData?.checkWish || false
         const wishCount = responseData?.wishCount
         
@@ -79,7 +79,7 @@ export const useWishStore = defineStore('wish', () => {
       } else {
         // 찜 등록 - POST 요청
         const response = await api.post('/wish', null, { params: { goodsId } })
-        const responseData = response.data?.data || response.data
+        const responseData = extractResponseData(response)
         const checkWish = responseData?.checkWish || false
         const wishId = responseData?.wishId
         const wishCount = responseData?.wishCount
