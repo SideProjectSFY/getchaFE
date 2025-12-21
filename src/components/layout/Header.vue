@@ -51,17 +51,18 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useGoodsStore } from '../../stores/goods'
+import { useWishStore } from '../../stores/wish'
 import NotificationBell from '../NotificationBell.vue'
 
 const logoExists = ref(true)
 const logoPath = ref('/logo.png')
 
-// 로고 이미지 존재 여부 확인
-onMounted(() => {
+// 로고 이미지 존재 여부 확인 및 찜 목록 불러오기
+onMounted(async () => {
   const img = new Image()
   img.onload = () => {
     logoExists.value = true
@@ -76,6 +77,11 @@ onMounted(() => {
       logoExists.value = true
     }
   }, 100)
+  
+  // 로그인 시 찜 목록 불러오기
+  if (isAuthenticated.value) {
+    await wishStore.fetchWishlist()
+  }
 })
 
 // 로고 이미지 로드 성공
@@ -94,12 +100,23 @@ function handleLogoError(event) {
 const router = useRouter()
 const authStore = useAuthStore()
 const goodsStore = useGoodsStore()
+const wishStore = useWishStore()
 
 const isAuthenticated = computed(() => authStore.isAuthenticated)
-const wishlistCount = computed(() => goodsStore.wishlist.length)
+const wishlistCount = computed(() => wishStore.wishlistData.length)
+
+// 로그인 상태 변경 감지하여 찜 목록 불러오기
+watch(() => isAuthenticated.value, async (newValue) => {
+  if (newValue) {
+    await wishStore.fetchWishlist()
+  } else {
+    wishStore.wishlistData = []
+  }
+})
 
 async function handleLogout() {
   await authStore.logout()
+  wishStore.wishlistData = []
   router.push('/')
 }
 </script>

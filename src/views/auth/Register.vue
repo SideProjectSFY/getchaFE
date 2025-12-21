@@ -18,6 +18,7 @@
             </div>
           </div>
 
+          <!-- 이메일 + 이메일 인증 버튼 + 인증 코드 입력 -->
           <div class="form-group">
             <label for="email">이메일 <span class="required">*</span></label>
             <div class="email-input-group">
@@ -35,9 +36,11 @@
                 :disabled="!form.email || sendingCode"
                 class="btn-outline verify-btn"
               >
+                <!-- 이메일 보냈으면 인증 코드 재발송 또는 인증 코드 확인 -->
                 {{ emailSent ? '재발송' : '인증하기' }}
               </button>
             </div>
+            <!-- emailSent 상태일때만 인증 코드 입력 창 활성화 -->
             <input
               v-if="emailSent"
               v-model="form.verificationCode"
@@ -47,6 +50,7 @@
             />
           </div>
 
+          <!-- 비밀번호 입력 -->
           <div class="form-group">
             <label for="password">비밀번호 <span class="required">*</span></label>
             <input
@@ -59,6 +63,7 @@
             />
           </div>
 
+          <!-- 이름 입력 -->
           <div class="form-group">
             <label for="name">이름 <span class="required">*</span></label>
             <input
@@ -71,6 +76,7 @@
             />
           </div>
 
+          <!-- 닉네임 입력 -->
           <div class="form-group">
             <label for="nickname">닉네임 <span class="required">*</span></label>
             <input
@@ -83,6 +89,7 @@
             />
           </div>
 
+          <!-- 관심 애니메이션 검색 및 선택 -->
           <div class="form-group">
             <label>관심 애니메이션 <span class="required">*</span> (3개 필수)</label>
             <AnimeSearch
@@ -92,6 +99,7 @@
             />
           </div>
 
+          <!-- 계좌 정보 (환불용) -->
           <div class="form-row account-row">
             <div class="account-field">
               <label for="bank">계좌은행 <span class="required">*</span></label>
@@ -106,6 +114,14 @@
                   {{ bank }}
                 </option>
               </select>
+              <input
+                v-if="form.accountBank === '직접입력'"
+                v-model="form.customBank"
+                type="text"
+                placeholder="은행명을 직접 입력하세요"
+                class="form-input"
+                required
+              />
             </div>
             <div class="account-field">
               <label for="accountNumber">계좌번호 <span class="required">*</span></label>
@@ -162,16 +178,17 @@ const form = ref({
   verificationCode: '',
   favoriteAnimes: [],
   accountBank: '',
-  accountNumber: ''
+  accountNumber: '',
+  customBank: ''
 })
 
 // UI 상태값
-const loading = ref(false)
-const errorMessage = ref('')
-const emailSent = ref(false)
-const emailVerified = ref(false)
-const sendingCode = ref(false)
-const profileImage = ref('')
+const loading = ref(false) // 회원가입 요청 중
+const errorMessage = ref('') // 에러 메시지 표시용
+const emailSent = ref(false) // 인증코드 이메일로 전송 여부
+const emailVerified = ref(false) // 이메일 인증 완료 여부
+const sendingCode = ref(false) // 인증코드 전송 중 상태인지
+const profileImage = ref('') // 프로필 이미지
 
 const bankOptions = [
   '국민은행',
@@ -181,7 +198,8 @@ const bankOptions = [
   '농협은행',
   '기업은행',
   '카카오뱅크',
-  '토스뱅크'
+  '토스뱅크',
+  '직접입력'
 ]
 
 // 관심 애니 선택 시 프로필 이미지 채우기
@@ -205,7 +223,9 @@ watch(
   { deep: true, immediate: true }
 )
 
+// 이메일 인증 코드 발송
 async function sendEmailVerification() {
+  // 이미 전송 중이면 종료
   if (sendingCode.value) return
   if (!form.value.email) {
     errorMessage.value = '이메일을 입력해주세요.'
@@ -240,6 +260,15 @@ async function handleRegister() {
     return
   }
 
+  const bankName = form.value.accountBank === '직접입력'
+    ? form.value.customBank.trim()
+    : form.value.accountBank
+
+  if (!bankName) {
+    errorMessage.value = '계좌은행을 선택하거나 입력해주세요.'
+    return
+  }
+
   if (!form.value.accountNumber.trim()) {
     errorMessage.value = '계좌번호를 입력해주세요.'
     return
@@ -255,7 +284,7 @@ async function handleRegister() {
     return
   }
 
-  // 백엔드 DTO(SignUpRequestDto)에 맞춘 페이로드
+  // 백엔드 DTO(SignUpRequestDto) 형식으로 변환
   const registerData = {
     nickname: form.value.nickname,
     name: form.value.name,
@@ -263,7 +292,7 @@ async function handleRegister() {
     password: form.value.password,
     likedAnimeIds: form.value.favoriteAnimes.map(anime => anime.id),
     accountNum: sanitizedAccountNumber,
-    accountBank: form.value.accountBank,
+    accountBank: bankName,
     profileImage: profileImage.value || (form.value.favoriteAnimes[0]?.coverImage?.large || '')
   }
 

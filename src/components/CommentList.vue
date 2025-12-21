@@ -13,9 +13,10 @@
     <div v-if="comments.length > 0" class="comments">
       <CommentItem
         v-for="comment in comments"
-        :key="comment.id"
+        :key="comment.commentId"
         :comment="comment"
         :goods-id="goodsId"
+        :seller-id="sellerId"
         @reply="handleReply"
         @delete="handleDelete"
       />
@@ -31,51 +32,95 @@ import { ref, computed, onMounted } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import CommentItem from './CommentItem.vue'
 import api from '../services/api'
+import { extractArrayResponse } from '../utils/responseApi'
 
 const props = defineProps({
   goodsId: {
     type: [String, Number],
     required: true
+  },
+  sellerId: {
+    type: [String, Number],
+    default: null
   }
 })
 
 const authStore = useAuthStore()
+
+/**
+ * 현재 사용자의 인증 상태
+ * @type {import('vue').ComputedRef<boolean>}
+ */
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 
+// 댓글 목록
 const comments = ref([])
+// 새 댓글 작성 내용
 const newComment = ref('')
 
+/**
+ * 서버에서 댓글 목록을 가져오는 함수
+ * extractArrayResponse 유틸리티를 사용하여 백엔드 응답 구조에서 배열 데이터 추출
+ */
 async function fetchComments() {
   try {
-    const response = await api.get(`/goods/${props.goodsId}/comments`)
-    comments.value = response.data
+    const response = await api.get(`/comment?goodsId=${props.goodsId}`)
+    comments.value = extractArrayResponse(response)
   } catch (error) {
     console.error('댓글 로딩 실패:', error)
     comments.value = []
   }
 }
 
+/**
+ * 새 댓글 작성 처리 함수
+ * 백엔드에 댓글 등록 요청 후, 성공 시 댓글 목록을 새로고침하여 전체 댓글 구조 유지
+ * 실패 시 상태 코드에 따른 에러 메시지 표시
+ */
 async function submitComment() {
   if (!newComment.value.trim()) return
 
   try {
-    const response = await api.post(`/goods/${props.goodsId}/comments`, {
+    // 백엔드 응답 구조: { status, message, data: { commentId, parentId } }
+    // 응답 데이터는 사용하지 않음 (댓글 목록 새로고침으로 처리)
+    await api.post('/comment', {
+      goodsId: props.goodsId,
       content: newComment.value
     })
-    comments.value.push(response.data)
+    // 댓글 목록 새로고침하여 전체 댓글 구조 유지
+    await fetchComments()
     newComment.value = ''
   } catch (error) {
-    alert('댓글 작성에 실패했습니다.')
+    if (error.response?.status === 404) {
+      alert('존재하지 않는 굿즈 글입니다.')
+    } else if (error.response?.status === 500) {
+      alert('댓글 등록에 실패하였습니다.')
+    } else {
+      alert('댓글 작성에 실패했습니다.')
+    }
   }
 }
 
+/**
+ * 대댓글 작성 완료 후 호출되는 핸들러
+ * CommentItem에서 emit된 'reply' 이벤트를 받아 댓글 목록을 새로고침
+ * @param {number} parentId - 부모 댓글 ID
+ * @param {string} content - 대댓글 내용 (현재 사용하지 않음)
+ */
 function handleReply(parentId, content) {
-  // 대댓글 추가 로직
+  // 대댓글 추가 후 댓글 목록 새로고침
   fetchComments()
 }
 
-function handleDelete(commentId) {
-  comments.value = comments.value.filter(c => c.id !== commentId)
+/**
+ * 댓글 삭제 완료 후 호출되는 핸들러
+ * CommentItem에서 emit된 'delete' 이벤트를 받아 댓글 목록을 새로고침
+ * soft delete, hard delete 상태를 반영하기 위해 목록 새로고침 필요
+ * @param {number} commentId - 삭제된 댓글 ID
+ */
+async function handleDelete(commentId) {
+  // 삭제 후 댓글 목록 새로고침 (soft delete, hard delete 상태 반영)
+  await fetchComments()
 }
 
 onMounted(() => {
