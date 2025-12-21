@@ -47,8 +47,19 @@ import { useAuthStore } from '../../stores/auth'
 const authStore = useAuthStore()
 const user = computed(() => authStore.user)
 const profileImage = computed(() => {
+  const liked = authStore.user?.likedAnimes?.[0]
+  const likedPoster =
+    liked?.postUrl ||
+    liked?.posterUrl ||
+    liked?.poster_url
   const fav = authStore.user?.favoriteAnimes?.[0]
-  return fav?.coverImage?.large || fav?.coverImage?.medium || authStore.user?.profileImage || '/placeholder.png'
+  return (
+    fav?.coverImage?.large ||
+    fav?.coverImage?.medium ||
+    likedPoster ||
+    authStore.user?.profileImage ||
+    '/placeholder.png'
+  )
 })
 const route = useRoute()
 
