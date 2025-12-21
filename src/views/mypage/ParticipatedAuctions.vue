@@ -8,19 +8,29 @@
         <div
           class="mini-card"
           v-for="goods in paginatedGoods"
-          :key="goods.id"
-          @click="goDetail(goods.id)"
+          :key="goods.goodsId"
+          @click="goDetail(goods.goodsId)"
         >
-          <div class="mini-card-thumb" :class="{ faded: isEnded(goods.status) }">
-            <img :src="goods.images?.[0] || '/placeholder.png'" :alt="goods.title" />
-          </div>
-          <div class="status-under-img">
-            <span class="status-pill" :class="{ end: isEnded(goods.status) }">{{ displayStatus(goods.status) }}</span>
+          <div class="mini-card-thumb" :class="{ faded: isEnded(goods.auctionStatus) }">
+            <img :src="getImageUrl(goods.mainFilePath)" :alt="goods.title" />
+            <div v-if="goods.auctionStatus === 'COMPLETED'" class="status-badge completed-badge">완료</div>
+            <div v-else-if="goods.auctionStatus === 'PROCEEDING'" class="status-badge ongoing-badge">진행중</div>
+            <div v-else-if="goods.auctionStatus === 'STOPPED'" class="status-badge stopped-badge">종료</div>
+            <div v-else-if="goods.auctionStatus === 'WAIT'" class="status-badge wait-badge">대기</div>
           </div>
           <div class="mini-card-body">
             <h3 class="mini-card-title">{{ goods.title }}</h3>
-            <p class="mini-card-meta">{{ goods.animeTitle }} · {{ goods.category }}</p>
-            <p class="mini-card-price">{{ formatPrice(goods.currentBid || goods.startPrice) }}</p>
+            <p class="mini-card-meta">{{ goods.animeTitle }} · {{ formatCategory(goods.category) }}</p>
+            <div class="price-info">
+              <div class="price-item">
+                <span class="price-label">현재 입찰가</span>
+                <span class="price-value">{{ formatPrice(goods.currentBidAmount || 0) }}</span>
+              </div>
+              <div class="price-item" v-if="goods.myBidAmount">
+                <span class="price-label">사용자 최대입찰금액</span>
+                <span class="price-value my-bid">{{ formatPrice(goods.myBidAmount) }}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -37,69 +47,47 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../../stores/auth'
+import { usePagination } from '../../composables/usePagination'
 import api from '../../services/api'
-import { formatPrice } from '../../utils/format'
+import { extractArrayResponse } from '../../utils/responseApi'
+import { formatPrice, formatCategory } from '../../utils/format'
+import { getImageUrl } from '../../utils/image'
 
-const authStore = useAuthStore()
 const router = useRouter()
 
 const loading = ref(true)
 const participatedGoods = ref([])
-const currentPage = ref(1)
-const ITEMS_PER_PAGE = 5
+const ITEMS_PER_PAGE = 6
+
+// 페이징 로직을 composable로 추출
+const { currentPage, totalPages, paginatedItems: paginatedGoods, changePage } = usePagination(ITEMS_PER_PAGE, participatedGoods)
 
 async function fetchParticipatedGoods() {
   loading.value = true
   try {
-    const response = await api.get('/goods/participated')
-    if (Array.isArray(response.data) && response.data.length > 0) {
-      participatedGoods.value = response.data
-    } else {
-      participatedGoods.value = []
-    }
+    const response = await api.get('/user/me/goods/participated')
+    const data = extractArrayResponse(response)
+    participatedGoods.value = data || []
   } catch (error) {
     console.error('참여 경매 로딩 실패:', error)
     participatedGoods.value = []
+  } finally {
+    loading.value = false
   }
-  loading.value = false
 }
-
-const totalPages = computed(() => Math.max(1, Math.ceil(participatedGoods.value.length / ITEMS_PER_PAGE)))
-const paginatedGoods = computed(() => {
-  const start = (currentPage.value - 1) * ITEMS_PER_PAGE
-  return participatedGoods.value.slice(start, start + ITEMS_PER_PAGE)
-})
-
-function changePage(page) {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
-}
-
-watch(participatedGoods, () => {
-  if (currentPage.value > totalPages.value) {
-    currentPage.value = totalPages.value
-  }
-})
 
 onMounted(() => {
   fetchParticipatedGoods()
 })
 
-function goDetail(id) {
-  router.push(`/goods/${id}`)
+function goDetail(goodsId) {
+  router.push({ path: '/goods', query: { goodsId } })
 }
 
-function isEnded(status) {
-  return status === 'COMPLETED' || status === 'STOPPED'
-}
-
-function displayStatus(status) {
-  if (status === 'COMPLETED') return '종료'
-  if (status === 'STOPPED') return '중지'
-  return '입찰'
+function isEnded(auctionStatus) {
+  return auctionStatus === 'COMPLETED' || auctionStatus === 'STOPPED'
 }
 </script>
 
@@ -145,6 +133,7 @@ function displayStatus(status) {
   border-radius: 12px;
   overflow: hidden;
   flex-shrink: 0;
+  position: relative;
 }
 
 .mini-card-thumb img {
@@ -159,8 +148,48 @@ function displayStatus(status) {
   opacity: 0.7;
 }
 
-.status-under-img {
-  margin-top: 6px;
+.status-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  z-index: 1;
+}
+
+.completed-badge {
+  background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+}
+
+.ongoing-badge {
+  background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.stopped-badge {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+}
+
+.wait-badge {
+  background: linear-gradient(135deg, #ffc107 0%, #ff9800 100%);
+  color: #ffffff;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
 }
 
 .mini-card-body {
@@ -182,32 +211,42 @@ function displayStatus(status) {
 .mini-card-meta {
   font-size: 12px;
   color: var(--text-light);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
 
-.status-pill {
-  background: var(--bg-light);
-  color: var(--primary-red);
-  border: 1px solid rgba(230, 57, 70, 0.2);
-  padding: 4px 8px;
-  border-radius: 8px;
+.price-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.price-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.price-label {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
+  color: var(--text-light);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-.status-pill.end {
-  color: var(--text-gray);
-}
-
-.mini-card-price {
+.price-value {
   font-size: 16px;
   font-weight: 800;
   color: var(--primary-red);
 }
 
-.mini-card-link {
-  margin-top: auto;
-  font-size: 12px;
-  color: var(--text-gray);
+.price-value.my-bid {
+  color: var(--text-dark);
+  font-size: 15px;
 }
 
 .pagination {
@@ -215,7 +254,7 @@ function displayStatus(status) {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  margin-top: 12px;
+  margin-top: 20px;
 }
 
 .page-btn {
@@ -223,6 +262,17 @@ function displayStatus(status) {
   border-radius: 20px;
   border: 1px solid rgba(0, 0, 0, 0.1);
   background: white;
+  font-weight: 600;
+}
+
+.page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.page-info {
+  font-weight: 700;
+  color: var(--text-dark);
 }
 
 .loading,
@@ -233,4 +283,3 @@ function displayStatus(status) {
   font-size: 16px;
 }
 </style>
-

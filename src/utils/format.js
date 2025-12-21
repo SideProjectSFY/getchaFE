@@ -13,6 +13,20 @@ export function formatDate(dateString) {
   }).format(date)
 }
 
+/**
+ * auctionEndAt으로부터 남은 시간(초) 계산
+ * @param {string} auctionEndAt - 경매 종료 시간 (ISO 문자열)
+ * @returns {number} 남은 시간(초), 이미 종료되었거나 잘못된 값이면 0
+ */
+export function calculateTimeRemaining(auctionEndAt) {
+  if (!auctionEndAt) return 0
+  
+  const endTime = new Date(auctionEndAt).getTime()
+  const now = new Date().getTime()
+  const diff = Math.floor((endTime - now) / 1000) // 초 단위
+  return Math.max(0, diff)
+}
+
 export function formatTimeRemaining(seconds) {
   if (seconds <= 0) return '종료됨'
   
@@ -34,11 +48,40 @@ export function formatTimeRemaining(seconds) {
 
 export function formatAuctionStatus(status) {
   const statusMap = {
-    WAITING: '경매 대기',
-    ONGOING: '진행 중',
+    WAIT: '경매 대기',
+    PROCEEDING: '진행 중',
     COMPLETED: '종료',
     STOPPED: '거래 중지'
   }
   return statusMap[status] || status
 }
+
+import { CATEGORY_REVERSE_MAP } from './category'
+
+/**
+ * 카테고리 영문값을 한글로 변환
+ */
+export function formatCategory(category) {
+  return CATEGORY_REVERSE_MAP[category] || category
+}
+
+/**
+ * 굿즈 가격 표시 로직
+ * currentBidAmount가 null이고 auctionStatus가 WAIT 또는 STOPPED일 경우 startPrice를 반환
+ * 그 외의 경우 currentBidAmount 또는 startPrice를 반환
+ */
+export function getDisplayPrice(goods) {
+  if (!goods) return 0
+  
+  const { currentBidAmount, startPrice, auctionStatus } = goods
+  
+  // currentBidAmount가 null이고 auctionStatus가 WAIT 또는 STOPPED일 경우 startPrice 반환
+  if (currentBidAmount === null && (auctionStatus === 'WAIT' || auctionStatus === 'STOPPED')) {
+    return startPrice
+  }
+  
+  // 그 외의 경우 currentBidAmount 또는 startPrice 반환
+  return currentBidAmount || startPrice || 0
+}
+
 
