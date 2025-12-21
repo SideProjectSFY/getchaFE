@@ -32,7 +32,6 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '../../stores/auth'
-import api from '../../services/api'
 
 const authStore = useAuthStore()
 const loading = ref(true)
@@ -42,16 +41,8 @@ const favoriteAnimes = ref([])
 // 관심 애니메이션 조회 함수
 async function fetchFavoriteAnimes() {
   loading.value = true
-  try {
-    const response = await api.get('/auth/favorite-animes')
-    const payload = response.data?.data || response.data || []
-    favoriteAnimes.value = mapAnimes(payload)
-  } catch (error) {
-    // API 호출 실패 시 보험
-    // 서버 호출 실패 시 로그인 시 저장된 사용자 정보(authStore.user) 안의 likeAnimes 로 사용
-    favoriteAnimes.value = mapAnimes(authStore.user?.likedAnimes || [])
-    console.error('관심 애니메이션 로딩 실패:', error)
-  }
+  // user 응답의 likedAnimes 활용
+  favoriteAnimes.value = mapAnimes(authStore.user?.likedAnimes || [])
   loading.value = false
 }
 
