@@ -63,8 +63,8 @@ const profileImage = computed(() => {
 })
 const route = useRoute()
 
-const closedIcon = '/images/gacha-closed.png'
-const openIcon = '/images/gacha-open.png'
+const closedIcon = '/gachaImages/gacha-closed.png'
+const openIcon = '/gachaImages/gacha-open.png'
 
 const menuItems = [
   { to: '/mypage/wishlist', label: '찜 리스트' },

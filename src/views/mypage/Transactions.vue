@@ -2,17 +2,41 @@
   <div class="transactions-page">
     <h1 class="page-title">거래 내역</h1>
     
+    <!-- 날짜 필터 -->
+    <div class="date-filter-section">
+      <div class="date-filter-group">
+        <label for="startDate">시작일자</label>
+        <input
+          id="startDate"
+          v-model="dateFilters.startDate"
+          type="date"
+          class="date-input"
+        />
+      </div>
+      <div class="date-filter-group">
+        <label for="endDate">종료일자</label>
+        <input
+          id="endDate"
+          v-model="dateFilters.endDate"
+          type="date"
+          class="date-input"
+        />
+      </div>
+      <button @click="applyDateFilters" class="filter-apply-btn">적용</button>
+      <button @click="clearDateFilters" class="filter-clear-btn">초기화</button>
+    </div>
+    
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="transactions.length > 0" class="transactions-list">
       <div
-        v-for="transaction in paginatedTransactions"
+        v-for="transaction in transactions"
         :key="transaction.id"
         class="transaction-item"
       >
         <div class="transaction-info">
           <div class="transaction-type">
-            <span :class="['type-badge', getTransactionCategory(transaction).className]">
-              {{ getTransactionCategory(transaction).label }}
+            <span :class="['type-badge', getTransactionTypeClass(transaction.transactionType)]">
+              {{ getTransactionTypeLabel(transaction.transactionType) }}
             </span>
           </div>
           <div class="transaction-details">
@@ -20,108 +44,152 @@
             <span class="transaction-date">{{ formatDate(transaction.createdAt) }}</span>
           </div>
         </div>
-        <div class="transaction-amount" :class="['transaction-amount', getDisplayAmount(transaction).className]">
-          {{ getDisplayAmount(transaction).text }}
+        <div class="transaction-amount" :class="getAmountClass(transaction)">
+          <span v-html="getDisplayAmount(transaction)"></span>
         </div>
       </div>
     </div>
     <div v-else class="empty-state">
       <p>거래 내역이 없습니다.</p>
     </div>
-    <div v-if="totalPages > 1" class="pagination">
-      <button class="page-btn" :disabled="currentPage === 1" @click="changePage(currentPage - 1)">
-        이전
-      </button>
-      <span class="page-info">{{ currentPage }} / {{ totalPages }}</span>
-      <button class="page-btn" :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">
-        다음
-      </button>
+    
+    <!-- 무한 스크롤 로딩 인디케이터 -->
+    <div v-if="isLoadingMore" class="loading-more">
+      <p>더 많은 거래 내역을 불러오는 중...</p>
+    </div>
+    <div v-else-if="!hasMore && transactions.length > 0" class="no-more">
+      <p>모든 거래 내역을 불러왔습니다.</p>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed, watch } from 'vue'
-import { formatPrice, formatDate } from '../../utils/format'
+import { ref, onMounted } from 'vue'
+import { formatDate } from '../../utils/format'
 import api from '../../services/api'
-import { useAuthStore } from '../../stores/auth'
+import { extractResponseData } from '../../utils/responseApi'
+import { useScrollPagination } from '../../composables/useScrollPagination'
 
-const authStore = useAuthStore()
-const loading = ref(true)
-const transactions = ref([])
-const currentPage = ref(1)
-const ITEMS_PER_PAGE = 5
-
-async function fetchTransactions() {
-  loading.value = true
-  try {
-    const response = await api.get('/wallet/transactions')
-    if (Array.isArray(response.data)) {
-      transactions.value = response.data
-    } else {
-      transactions.value = []
-    }
-  } catch (error) {
-    console.error('거래 내역 로딩 실패:', error)
-    transactions.value = []
-  }
-  loading.value = false
-}
-
-const totalPages = computed(() => Math.max(1, Math.ceil(transactions.value.length / ITEMS_PER_PAGE)))
-
-const paginatedTransactions = computed(() => {
-  const start = (currentPage.value - 1) * ITEMS_PER_PAGE
-  return transactions.value.slice(start, start + ITEMS_PER_PAGE)
+const dateFilters = ref({
+  startDate: '',
+  endDate: ''
 })
 
-function getAmountClass(amount) {
-  if (amount > 0) return 'positive'
-  if (amount < 0) return 'negative'
-  return 'neutral'
+const pageSize = ref(10)
+
+// 스크롤 페이징 composable 사용
+const {
+  loading,
+  isLoadingMore,
+  hasMore,
+  items: transactions,
+  initialize,
+  updateParams
+} = useScrollPagination(
+  async (page, append, params) => {
+    const requestParams = {
+      page,
+      size: pageSize.value,
+      ...params
+    }
+    
+    // 빈 값은 파라미터에서 제외
+    if (!requestParams.startDate) delete requestParams.startDate
+    if (!requestParams.endDate) delete requestParams.endDate
+    
+    const response = await api.get('/wallet/history', { params: requestParams })
+    const data = extractResponseData(response, { items: [], currentPage: 1, totalPages: 1, totalCount: 0 })
+    
+    return {
+      items: data.items || [],
+      currentPage: data.currentPage || page,
+      totalPages: data.totalPages || 1,
+      totalCount: data.totalCount || 0
+    }
+  },
+  {
+    initialPage: 1,
+    pageSize: pageSize.value,
+    scrollThreshold: 200,
+    params: {}
+  }
+)
+
+function applyDateFilters() {
+  updateParams({
+    startDate: dateFilters.value.startDate || undefined,
+    endDate: dateFilters.value.endDate || undefined
+  })
 }
 
-function changePage(page) {
-  if (page < 1 || page > totalPages.value) return
-  currentPage.value = page
+function clearDateFilters() {
+  dateFilters.value.startDate = ''
+  dateFilters.value.endDate = ''
+  updateParams({
+    startDate: undefined,
+    endDate: undefined
+  })
 }
 
-function getTransactionCategory(transaction) {
-  if (transaction.type === 'DEPOSIT') {
-    return { label: '충전', className: 'type-charge' }
+function getTransactionTypeLabel(transactionType) {
+  const typeMap = {
+    CHARGE: '충전',
+    BIDLOCK: '입찰',
+    BIDUNLOCK: '환불',
+    INCOME: '입금',
+    EXPENSE: '출금'
   }
-  if (transaction.type === 'REFUND') {
-    return { label: '환불', className: 'type-refund' }
+  return typeMap[transactionType] || transactionType
+}
+
+function getTransactionTypeClass(transactionType) {
+  const classMap = {
+    CHARGE: 'type-charge',
+    BIDLOCK: 'type-bidlock',
+    BIDUNLOCK: 'type-refund',
+    INCOME: 'type-income',
+    EXPENSE: 'type-expense'
   }
-  if (transaction.amount > 0) {
-    return { label: '입금', className: 'type-deposit' }
+  return classMap[transactionType] || 'type-default'
+}
+
+function getAmountClass(transaction) {
+  const { transactionType } = transaction
+  
+  if (transactionType === 'CHARGE' || transactionType === 'BIDUNLOCK' || transactionType === 'INCOME') {
+    return 'amount-positive'
   }
-  if (transaction.amount < 0) {
-    return { label: '출금', className: 'type-withdraw' }
+  if (transactionType === 'BIDLOCK') {
+    return 'amount-negative'
   }
-  return { label: '입금', className: 'type-deposit' }
+  if (transactionType === 'EXPENSE') {
+    return 'amount-expense'
+  }
+  return 'amount-neutral'
 }
 
 function getDisplayAmount(transaction) {
-  if (transaction.type === 'WIN') {
-    return { text: '정산 완료', className: 'neutral' }
+  const { transactionType, amount } = transaction
+  const formattedAmount = new Intl.NumberFormat('ko-KR').format(Math.abs(amount || 0))
+  
+  // 출금(EXPENSE)인 경우: "정산완료 (금액)" 형식
+  if (transactionType === 'EXPENSE') {
+    return `정산완료 <span class="amount-value">(${formattedAmount})</span> <span class="amount-unit">골드</span>`
   }
-  const amount = transaction.amount || 0
-  const sign = amount > 0 ? '+' : amount < 0 ? '-' : ''
-  return {
-    text: `${sign}${formatPrice(Math.abs(amount))}`,
-    className: getAmountClass(amount)
+  
+  // 나머지 경우: 증감 형태 표시
+  let sign = ''
+  if (transactionType === 'CHARGE' || transactionType === 'BIDUNLOCK' || transactionType === 'INCOME') {
+    sign = '+'
+  } else if (transactionType === 'BIDLOCK') {
+    sign = '-'
   }
+  
+  return `${sign}<span class="amount-value">${formattedAmount}</span> <span class="amount-unit">골드</span>`
 }
 
-watch(transactions, () => {
-  if (currentPage.value > totalPages.value) {
-    currentPage.value = totalPages.value
-  }
-})
-
 onMounted(() => {
-  fetchTransactions()
+  initialize()
 })
 </script>
 
@@ -136,6 +204,78 @@ onMounted(() => {
   font-size: 28px;
   font-weight: 900;
   color: var(--text-dark);
+}
+
+.date-filter-section {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  flex-wrap: wrap;
+}
+
+.date-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.date-filter-group label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.date-input {
+  height: 44px;
+  padding: 0 14px;
+  border: 1px solid #eeeeee;
+  border-radius: 10px;
+  font-size: 14px;
+  transition: var(--transition);
+  background: #ffffff;
+  color: var(--text-dark);
+  min-width: 180px;
+}
+
+.date-input:focus {
+  border-color: var(--primary-red);
+  outline: none;
+}
+
+.filter-apply-btn,
+.filter-clear-btn {
+  height: 44px;
+  padding: 0 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  transition: var(--transition);
+  white-space: nowrap;
+}
+
+.filter-apply-btn {
+  border: 1px solid var(--primary-red);
+  background: var(--primary-red);
+  color: white;
+}
+
+.filter-apply-btn:hover {
+  background: rgba(220, 20, 60, 0.9);
+}
+
+.filter-clear-btn {
+  border: 1px solid #eeeeee;
+  background: white;
+  color: var(--text-dark);
+}
+
+.filter-clear-btn:hover {
+  border-color: var(--primary-red);
+  color: var(--primary-red);
 }
 
 .transactions-list {
@@ -166,27 +306,43 @@ onMounted(() => {
 }
 
 .type-badge {
-  padding: 6px 12px;
-  border-radius: 6px;
-  font-size: 12px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
   font-weight: 700;
   color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  /* white-space: nowrap; */
 }
 
 .type-charge {
-  background: #ff6b81;
+  background: linear-gradient(135deg, #008364d3 0%, #00a780 100%);
+  box-shadow: 0 2px 8px rgba(30, 154, 76, 0.3);
 }
 
-.type-deposit {
-  background: #00b894;
-}
-
-.type-withdraw {
-  background: #e63946;
+.type-bidlock {
+  background: linear-gradient(135deg, #e63946 0%, #ff4d6d 100%);
+  box-shadow: 0 2px 8px rgba(230, 57, 70, 0.3);
 }
 
 .type-refund {
-  background: #6c5ce7;
+  background: linear-gradient(135deg, #1E9A4C 0%, #2db86b 100%);
+  box-shadow: 0 2px 8px rgba(30, 154, 76, 0.3);
+}
+
+.type-income {
+  background: linear-gradient(135deg, #1E9A4C 0%, #2db86b 100%);
+  box-shadow: 0 2px 8px rgba(30, 154, 76, 0.3);
+}
+
+.type-expense {
+  background: linear-gradient(135deg, #ff961e 0%, #f39c12 100%);
+  box-shadow: 0 2px 8px rgba(243, 156, 18, 0.3);
+}
+
+.type-default {
+  background: linear-gradient(135deg, #6c757d 0%, #868e96 100%);
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
 }
 
 .transaction-details {
@@ -209,18 +365,37 @@ onMounted(() => {
 .transaction-amount {
   font-size: 18px;
   font-weight: 700;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
-.transaction-amount.positive {
+.transaction-amount.amount-positive {
   color: #1E9A4C;
+  text-shadow: 0 1px 4px rgba(30, 154, 76, 0.2);
 }
 
-.transaction-amount.negative {
-  color: #E63946;
+.transaction-amount.amount-negative {
+  color: #e63946;
+  text-shadow: 0 1px 4px rgba(230, 57, 70, 0.2);
 }
 
-.transaction-amount.neutral {
+.transaction-amount.amount-expense {
+  color: #f39c12;
+  text-shadow: 0 1px 4px rgba(243, 156, 18, 0.2);
+}
+
+.transaction-amount.amount-neutral {
   color: #555;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.amount-value {
+  font-weight: 800;
+}
+
+.amount-unit {
+  color: #000000;
+  font-weight: 700;
 }
 
 .loading,
@@ -231,35 +406,32 @@ onMounted(() => {
   font-size: 16px;
 }
 
-.pagination {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 16px;
+.loading-more,
+.no-more {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-light);
+  font-size: 14px;
 }
 
-.page-btn {
-  padding: 10px 18px;
-  border-radius: 999px;
-  border: 1px solid var(--border-color);
-  background: white;
-  font-weight: 600;
-  transition: var(--transition);
-}
-
-.page-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-
-.page-btn:not(:disabled):hover {
-  border-color: var(--primary-red);
-  color: var(--primary-red);
-}
-
-.page-info {
-  font-weight: 700;
-  color: var(--text-dark);
+@media (max-width: 768px) {
+  .date-filter-section {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .date-filter-group {
+    width: 100%;
+  }
+  
+  .date-input {
+    width: 100%;
+    min-width: auto;
+  }
+  
+  .filter-apply-btn,
+  .filter-clear-btn {
+    width: 100%;
+  }
 }
 </style>
-
