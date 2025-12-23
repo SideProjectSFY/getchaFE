@@ -29,6 +29,11 @@
       <div class="goods-header">
         <div class="goods-title-row">
           <h3 class="goods-title">{{ goods.title }}</h3>
+          <!-- matchRate가 있을 때만 표시 (추천 굿즈에서만) -->
+          <div v-if="goods.matchRate !== undefined && goods.matchRate !== null" class="match-rate-badge">
+            <span class="match-rate-label">매칭률</span>
+            <span class="match-rate-value">{{ Number(goods.matchRate) }}%</span>
+          </div>
         </div>
         <div class="goods-meta-row">
           <span v-if="goods.category" class="category-badge">{{ formatCategory(goods.category) }}</span>
@@ -311,6 +316,10 @@ async function toggleWishlist() {
 
 .goods-title-row {
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .goods-title {
@@ -322,6 +331,33 @@ async function toggleWishlist() {
   white-space: nowrap;
   line-height: 1.4;
   margin-bottom: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.match-rate-badge {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E53 100%);
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: white;
+  white-space: nowrap;
+  box-shadow: 0 2px 6px rgba(255, 107, 107, 0.3);
+  flex-shrink: 0;
+}
+
+.match-rate-label {
+  font-size: 10px;
+  opacity: 0.9;
+}
+
+.match-rate-value {
+  font-size: 12px;
+  font-weight: 800;
 }
 
 .goods-meta-row {
