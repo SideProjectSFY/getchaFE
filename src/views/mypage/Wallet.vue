@@ -27,12 +27,16 @@
           <div class="wallet-divider"></div>
           <div class="wallet-display">
             <div class="wallet-currency">
-              <span class="coin-stack">
-                <span class="coin"></span>
-                <span class="coin second"></span>
-              </span>
+              <!-- Lottie 코인 이미지 (수동 play) -->
+              <dotlottie-wc
+                ref="walletLottie"
+                class="wallet-lottie"
+                src="https://lottie.host/cc19de9d-3878-4fdd-82de-913ca7db0443/qpAwk5i0Si.lottie"
+                loop
+                @ready="onLottieReady"
+              ></dotlottie-wc>
             </div>
-            <p class="stat-label">{{ displayLabel }}</p>
+<!--            <p class="stat-label">{{ displayLabel }}</p> -->
             <p class="stat-value">{{ formatPrice(displayAmount) }}</p>
           </div>
         </div>
@@ -132,6 +136,13 @@ const walletTabs = [
   { key: 'lockedBalance', label: '예치금' },
   { key: 'total', label: '총 자산' }
 ]
+
+// Lottie 제어용 ref
+const walletLottie = ref(null)
+
+function onLottieReady() {
+  walletLottie.value?.play?.()
+}
 
 // 잔액/예치금 계산
 const displayAmount = computed(() => {
@@ -296,6 +307,8 @@ async function handleCharge() {
 
 // 처음 로딩 시 지갑 조회
 onMounted(() => {
+  // 이미 ready 상태라면 약간의 지연 후 play 재시도
+  setTimeout(() => walletLottie.value?.play?.(), 50)
   fetchWallet()
 })
 </script>
@@ -397,37 +410,9 @@ onMounted(() => {
   gap: 12px;
 }
 
-.coin-stack {
-  position: relative;
-  width: 32px;
-  height: 32px;
-}
-
-.coin {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ffe08a, #ffc107);
-  border: 1px solid rgba(255, 193, 7, 0.6);
-  box-shadow: 0 6px 12px rgba(255, 193, 7, 0.35);
-}
-
-.coin::after {
-  content: 'G';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-weight: 800;
-  color: #a35400;
-  font-size: 14px;
-}
-
-.coin.second {
-  top: 4px;
-  left: 6px;
-  opacity: 0.7;
+.wallet-lottie {
+  width: 160px;
+  height: 160px;
 }
 
 .stat-label {
