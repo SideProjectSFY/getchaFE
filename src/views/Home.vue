@@ -6,10 +6,10 @@
         <h2 class="section-title">당신을 위한 추천</h2>
         <div v-if="isAuthenticated">
           <div
-            v-if="recommendedGoods.length > 0"
-            class="carousel-shell"
-            @mouseenter="stopCarousel"
-            @mouseleave="startCarousel"
+              v-if="recommendedGoods.length > 0"
+              class="carousel-shell"
+              @mouseenter="stopCarousel"
+              @mouseleave="startCarousel"
           >
             <button class="carousel-btn prev" type="button" @click="handleCarouselClick(-1)" aria-label="이전 추천 보기">
               ‹
@@ -40,10 +40,10 @@
         <h2 class="section-title">카테고리별 둘러보기</h2>
         <div class="category-grid">
           <router-link
-            v-for="category in categories"
-            :key="category"
-            :to="category === 'ALL' ? '/goods' : `/goods?category=${encodeURIComponent(category)}`"
-            class="category-card"
+              v-for="category in categories"
+              :key="category"
+              :to="category === 'ALL' ? '/goods' : `/goods?category=${encodeURIComponent(category)}`"
+              class="category-card"
           >
             <div class="category-image-wrapper">
               <img :src="getCategoryImage(category)" :alt="category" class="category-image" />
@@ -61,10 +61,10 @@
         <h2 class="section-title">Hot</h2>
         <div v-if="popularGoods.length > 0" class="goods-grid">
           <GoodsCard
-            v-for="goods in popularGoods"
-            :key="goods.goodsId"
-            :goods="goods"
-            :additional-lists="additionalListsForPopular"
+              v-for="goods in popularGoods"
+              :key="goods.goodsId"
+              :goods="goods"
+              :additional-lists="additionalListsForPopular"
           />
         </div>
         <div v-else class="empty-state">
@@ -103,10 +103,14 @@ let restartTimer = null
 
 async function fetchRecommendedGoods() {
   if (!isAuthenticated.value) return
-  
+
   try {
-    const response = await api.get('/goods/recommended')
-    recommendedGoods.value = Array.isArray(response.data) ? response.data : []
+    const response = await api.get('/recommend/goods')
+    const payload = response.data?.data || response.data || {}
+    const items = payload.items || (Array.isArray(payload) ? payload : [])
+    // 백엔드 굿즈 데이터를 카드에서 바로 쓸 수 있는 형태로 변환
+    const transformed = items.map(item => goodsStore.transformGoodsItem(item))
+    recommendedGoods.value = transformed
   } catch (error) {
     console.error('추천 굿즈 로딩 실패:', error)
     recommendedGoods.value = []
@@ -116,15 +120,15 @@ async function fetchRecommendedGoods() {
 async function fetchPopularGoods() {
   try {
     const response = await api.get('/goods/hot-goods')
-    
+
     // 백엔드 응답 구조 확인 (response.data.data.items 또는 response.data.items 또는 response.data)
     const responseData = response.data?.data || response.data
     const items = responseData?.items || (Array.isArray(responseData) ? responseData : [])
-    
+
     // 백엔드 데이터를 프론트엔드 형식으로 변환 (transformGoodsItem 사용)
     // transformGoodsItem은 ...item으로 모든 속성(checkWish 포함)을 그대로 전달
     const transformedItems = items.map(item => goodsStore.transformGoodsItem(item))
-    
+
     // 페이징 처리 없이 최대 6개만 표시
     popularGoods.value = transformedItems.slice(0, 6)
   } catch (error) {
@@ -210,19 +214,19 @@ onUnmounted(() => {
 })
 
 watch(
-  () => ({
-    length: recommendedGoods.value.length,
-    auth: isAuthenticated.value
-  }),
-  () => {
-    nextTick(() => {
-      if (isAuthenticated.value && recommendedGoods.value.length > 0) {
-        startCarousel()
-      } else {
-        stopCarousel()
-      }
-    })
-  }
+    () => ({
+      length: recommendedGoods.value.length,
+      auth: isAuthenticated.value
+    }),
+    () => {
+      nextTick(() => {
+        if (isAuthenticated.value && recommendedGoods.value.length > 0) {
+          startCarousel()
+        } else {
+          stopCarousel()
+        }
+      })
+    }
 )
 </script>
 
@@ -432,12 +436,12 @@ watch(
   .section-title {
     font-size: 24px;
   }
-  
+
   .category-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
-  
+
   .goods-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
@@ -452,4 +456,3 @@ watch(
   }
 }
 </style>
-
