@@ -1,6 +1,6 @@
 <template>
   <div class="wishlist-page">
-    <h1 class="page-title">찜 리스트</h1>
+    <h1 class="page-title title-heading">찜 리스트</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="wishlistGoods.length > 0">

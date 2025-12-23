@@ -1,3 +1,18 @@
+
+@font-face {
+    font-family: 'DaeguBukseongro';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/2511-1@1.0/DaeguBukseongro-ExtraBold.woff2') format('woff2');
+    font-weight: 900;
+    font-display: swap;
+}
+
+@font-face {
+  font-family: 'NeoDonggeunmo';
+  src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.3/NeoDunggeunmo.woff') format('woff');
+  font-weight: normal;
+  font-display: swap;
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -24,7 +39,7 @@
 }
 
 body {
-  font-family: 'Noto Sans KR', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: 'DaeguBukseongro', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--text-dark);
   background: var(--bg-gradient);
   line-height: 1.6;
@@ -35,6 +50,11 @@ body {
 .getcha-brand-text {
   font-family: 'Rubik Bubbles', 'Modak', 'Rubik', 'Inter', 'Noto Sans KR', sans-serif;
   letter-spacing: 1px;
+}
+
+.title-heading {
+  font-family: 'NeoDonggeunmo', 'DaeguBukseongro', 'Inter', sans-serif;
+  font-weight: 700;
 }
 
 a {

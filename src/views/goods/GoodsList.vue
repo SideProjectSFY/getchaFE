@@ -2,7 +2,7 @@
   <div class="goods-list-page">
     <div class="container">
       <div class="page-header">
-        <h1 class="page-title">굿즈 둘러보기</h1>
+        <h1 class="page-title title-heading">굿즈 둘러보기</h1>
         <router-link v-if="isAuthenticated" to="/goods/register" class="btn-primary register-btn">
           굿즈 등록
         </router-link>

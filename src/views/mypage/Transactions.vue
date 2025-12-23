@@ -1,6 +1,6 @@
 <template>
   <div class="transactions-page">
-    <h1 class="page-title">거래 내역</h1>
+    <h1 class="page-title title-heading">거래 내역</h1>
     
     <!-- 날짜 필터 -->
     <div class="date-filter-section">

@@ -1,6 +1,6 @@
 <template>
   <div class="favorite-animes-page">
-    <h1 class="page-title">관심 애니메이션</h1>
+    <h1 class="page-title title-heading">관심 애니메이션</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
     <!-- favoriteAnimes 배열에 1개 이상 있을 때의 애니 목록 -->

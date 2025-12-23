@@ -60,7 +60,7 @@
         <!-- 상품 정보 -->
         <div class="goods-info">
           <div class="goods-header">
-            <h1 class="goods-title">{{ goods.title }}</h1>
+            <h1 class="goods-title title-heading">{{ goods.title }}</h1>
             <div class="goods-meta">
               <div class="seller-info">
                 <img 

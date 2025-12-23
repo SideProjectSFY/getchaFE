@@ -1,7 +1,7 @@
 <template>
   <div class="goods-edit-page">
     <div class="container">
-      <h1 class="page-title">굿즈 수정</h1>
+      <h1 class="page-title title-heading">굿즈 수정</h1>
 
       <div v-if="loading" class="loading">로딩 중...</div>
       <form v-else @submit.prevent="handleSubmit" class="edit-form">

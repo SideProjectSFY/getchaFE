@@ -23,7 +23,7 @@ flex-wrap: wrap;
 
 <template>
   <div class="profile-page">
-    <h1 class="page-title">정보 수정</h1>
+    <h1 class="page-title title-heading">정보 수정</h1>
 
     <form @submit.prevent="handleSubmit" class="profile-form">
       <!-- 프로필 이미지 -->

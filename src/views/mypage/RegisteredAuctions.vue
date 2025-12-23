@@ -1,6 +1,6 @@
 <template>
   <div class="registered-auctions-page">
-    <h1 class="page-title">등록 경매</h1>
+    <h1 class="page-title title-heading">등록 경매</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="registeredGoods.length > 0">

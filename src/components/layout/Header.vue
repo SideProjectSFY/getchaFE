@@ -38,12 +38,12 @@
             </svg>
             <span v-if="wishlistCount > 0" class="badge">{{ wishlistCount }}</span>
           </router-link>
-          <button @click="handleLogout" class="btn-outline logout-btn">Logout</button>
+          <button @click="handleLogout" class="btn-outline logout-btn">로그아웃</button>
         </div>
         
         <div v-else class="guest-menu">
-          <router-link to="/login" class="btn-outline auth-btn">Login</router-link>
-          <router-link to="/register" class="btn-primary auth-btn primary-auth-btn">Sign In</router-link>
+          <router-link to="/login" class="btn-outline auth-btn">로그인</router-link>
+          <router-link to="/register" class="btn-primary auth-btn primary-auth-btn">회원가입</router-link>
         </div>
       </div>
     </div>

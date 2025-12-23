@@ -1,7 +1,7 @@
 <template>
   <div class="goods-register-page">
     <div class="container">
-      <h1 class="page-title">굿즈 등록</h1>
+      <h1 class="page-title title-heading">굿즈 등록</h1>
 
       <form @submit.prevent="handleSubmit" class="register-form">
         <!-- 경매 글 제목 -->
