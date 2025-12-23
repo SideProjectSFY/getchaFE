@@ -44,6 +44,7 @@ const routes = [
     children: [
       {
         path: '',
+        name: 'MyPageIndex',
         redirect: '/mypage/wishlist'
       },
       {

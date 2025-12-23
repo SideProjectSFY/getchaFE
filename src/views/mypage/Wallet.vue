@@ -27,12 +27,11 @@
           <div class="wallet-divider"></div>
           <div class="wallet-display">
             <div class="wallet-currency">
-              <span class="coin-stack">
-                <span class="coin"></span>
-                <span class="coin second"></span>
-              </span>
+              <!-- lottie 코인 -->
+              <div class="lottie-wrapper">
+                <div ref="coinLottie" class="wallet-lottie"></div>
+              </div>
             </div>
-            <p class="stat-label">{{ displayLabel }}</p>
             <p class="stat-value">{{ formatPrice(displayAmount) }}</p>
           </div>
         </div>
@@ -98,11 +97,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, nextTick } from 'vue'
 import { formatPrice } from '../../utils/format'
 import api from '../../services/api'
 import { extractResponseData } from '../../utils/responseApi'
 import { useAuthStore } from '../../stores/auth'
+import lottie from 'lottie-web'
+import coinAnimation from '@/assets/lottie/Coin.json'
 
 //로딩 상태. default true(로딩중)
 const loading = ref(true)
@@ -168,6 +169,8 @@ async function fetchWallet() {
     }
   } finally {
     loading.value = false
+    // 렌더 완료 후 로티 초기화
+    initCoinLottie()
   }
 }
 
@@ -294,9 +297,33 @@ async function handleCharge() {
   }
 }
 
+// Lottie 코인
+const coinLottie = ref(null)
+let lottieInstance = null
+let lottieInitialized = false
+
+// 지갑 렌더링 후 Lottie를 초기화
+async function initCoinLottie() {
+  if (lottieInitialized) return
+  await nextTick()
+  if (!coinLottie.value) return
+  lottieInstance = lottie.loadAnimation({
+    container: coinLottie.value,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    animationData: coinAnimation
+  })
+  lottieInitialized = true
+}
+
 // 처음 로딩 시 지갑 조회
 onMounted(() => {
   fetchWallet()
+})
+
+onBeforeUnmount(() => {
+  lottieInstance?.destroy()
 })
 </script>
 
@@ -397,37 +424,9 @@ onMounted(() => {
   gap: 12px;
 }
 
-.coin-stack {
-  position: relative;
-  width: 32px;
-  height: 32px;
-}
-
-.coin {
-  position: absolute;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, #ffe08a, #ffc107);
-  border: 1px solid rgba(255, 193, 7, 0.6);
-  box-shadow: 0 6px 12px rgba(255, 193, 7, 0.35);
-}
-
-.coin::after {
-  content: 'G';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-weight: 800;
-  color: #a35400;
-  font-size: 14px;
-}
-
-.coin.second {
-  top: 4px;
-  left: 6px;
-  opacity: 0.7;
+.wallet-lottie {
+  width: 160px;
+  height: 160px;
 }
 
 .stat-label {
@@ -592,5 +591,12 @@ onMounted(() => {
 .error-state {
   color: var(--primary-red);
 }
+
+.lottie-wrapper {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+
 </style>
 
