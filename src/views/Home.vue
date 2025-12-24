@@ -23,6 +23,9 @@
               ›
             </button>
           </div>
+          <div v-else-if="isLoadingRecommended" class="loading-state">
+            <p>추천 시스템 가동 중 ... 🤖</p>
+          </div>
           <div v-else class="empty-state">
             <p>아직 추천할 굿즈가 없습니다.</p>
           </div>
@@ -93,6 +96,7 @@ const categories = computed(() => goodsStore.categories)
 
 const recommendedGoods = ref([])
 const popularGoods = ref([])
+const isLoadingRecommended = ref(false)
 
 // additionalLists를 computed로 생성하여 Vue 반응성 보장
 const additionalListsForPopular = computed(() => [popularGoods])
@@ -104,6 +108,7 @@ let restartTimer = null
 async function fetchRecommendedGoods() {
   if (!isAuthenticated.value) return
 
+  isLoadingRecommended.value = true
   try {
     const response = await api.get('/recommend/goods')
     const payload = response.data?.data || response.data || {}
@@ -114,6 +119,8 @@ async function fetchRecommendedGoods() {
   } catch (error) {
     console.error('추천 굿즈 로딩 실패:', error)
     recommendedGoods.value = []
+  } finally {
+    isLoadingRecommended.value = false
   }
 }
 
@@ -424,6 +431,24 @@ watch(
   padding: 60px 20px;
   color: var(--text-light);
   font-size: 16px;
+}
+
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--primary-red);
+  font-size: 18px;
+  font-weight: 700;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
 }
 
 @media (max-width: 1200px) {
