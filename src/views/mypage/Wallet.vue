@@ -27,16 +27,11 @@
           <div class="wallet-divider"></div>
           <div class="wallet-display">
             <div class="wallet-currency">
-              <!-- Lottie 코인 이미지 (수동 play) -->
-              <dotlottie-wc
-                ref="walletLottie"
-                class="wallet-lottie"
-                src="https://lottie.host/cc19de9d-3878-4fdd-82de-913ca7db0443/qpAwk5i0Si.lottie"
-                loop
-                @ready="onLottieReady"
-              ></dotlottie-wc>
+              <!-- lottie 코인 -->
+              <div class="lottie-wrapper">
+                <div ref="coinLottie" class="wallet-lottie"></div>
+              </div>
             </div>
-<!--            <p class="stat-label">{{ displayLabel }}</p> -->
             <p class="stat-value">{{ formatPrice(displayAmount) }}</p>
           </div>
         </div>
@@ -102,11 +97,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, nextTick } from 'vue'
 import { formatPrice } from '../../utils/format'
 import api from '../../services/api'
 import { extractResponseData } from '../../utils/responseApi'
 import { useAuthStore } from '../../stores/auth'
+import lottie from 'lottie-web'
+import coinAnimation from '@/assets/lottie/Coin.json'
 
 //로딩 상태. default true(로딩중)
 const loading = ref(true)
@@ -136,13 +133,6 @@ const walletTabs = [
   { key: 'lockedBalance', label: '예치금' },
   { key: 'total', label: '총 자산' }
 ]
-
-// Lottie 제어용 ref
-const walletLottie = ref(null)
-
-function onLottieReady() {
-  walletLottie.value?.play?.()
-}
 
 // 잔액/예치금 계산
 const displayAmount = computed(() => {
@@ -179,6 +169,8 @@ async function fetchWallet() {
     }
   } finally {
     loading.value = false
+    // 렌더 완료 후 로티 초기화
+    initCoinLottie()
   }
 }
 
@@ -305,11 +297,33 @@ async function handleCharge() {
   }
 }
 
+// Lottie 코인
+const coinLottie = ref(null)
+let lottieInstance = null
+let lottieInitialized = false
+
+// 지갑 렌더링 후 Lottie를 초기화
+async function initCoinLottie() {
+  if (lottieInitialized) return
+  await nextTick()
+  if (!coinLottie.value) return
+  lottieInstance = lottie.loadAnimation({
+    container: coinLottie.value,
+    renderer: 'svg',
+    loop: true,
+    autoplay: true,
+    animationData: coinAnimation
+  })
+  lottieInitialized = true
+}
+
 // 처음 로딩 시 지갑 조회
 onMounted(() => {
-  // 이미 ready 상태라면 약간의 지연 후 play 재시도
-  setTimeout(() => walletLottie.value?.play?.(), 50)
   fetchWallet()
+})
+
+onBeforeUnmount(() => {
+  lottieInstance?.destroy()
 })
 </script>
 
@@ -577,5 +591,12 @@ onMounted(() => {
 .error-state {
   color: var(--primary-red);
 }
+
+.lottie-wrapper {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+
 </style>
 

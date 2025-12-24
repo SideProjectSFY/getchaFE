@@ -6,10 +6,10 @@
         <h2 class="section-title title-heading">당신을 위한 추천</h2>
         <div v-if="isAuthenticated">
           <div
-            v-if="recommendedGoods.length > 0"
-            class="carousel-shell"
-            @mouseenter="stopCarousel"
-            @mouseleave="startCarousel"
+              v-if="recommendedGoods.length > 0"
+              class="carousel-shell"
+              @mouseenter="stopCarousel"
+              @mouseleave="startCarousel"
           >
             <button class="carousel-btn prev" type="button" @click="handleCarouselClick(-1)" aria-label="이전 추천 보기">
               ‹
@@ -22,6 +22,9 @@
             <button class="carousel-btn next" type="button" @click="handleCarouselClick(1)" aria-label="다음 추천 보기">
               ›
             </button>
+          </div>
+          <div v-else-if="isLoadingRecommended" class="loading-state">
+            <p>추천 시스템 가동 중 ... 🤖</p>
           </div>
           <div v-else class="empty-state">
             <p>아직 추천할 굿즈가 없습니다.</p>
@@ -40,10 +43,10 @@
         <h2 class="section-title title-heading">카테고리별 둘러보기</h2>
         <div class="category-grid">
           <router-link
-            v-for="category in categories"
-            :key="category"
-            :to="category === 'ALL' ? '/goods' : `/goods?category=${encodeURIComponent(category)}`"
-            class="category-card"
+              v-for="category in categories"
+              :key="category"
+              :to="category === 'ALL' ? '/goods' : `/goods?category=${encodeURIComponent(category)}`"
+              class="category-card"
           >
             <div class="category-image-wrapper">
               <img :src="getCategoryImage(category)" :alt="category" class="category-image" />
@@ -61,10 +64,10 @@
         <h2 class="section-title title-heading">Hot</h2>
         <div v-if="popularGoods.length > 0" class="goods-grid">
           <GoodsCard
-            v-for="goods in popularGoods"
-            :key="goods.goodsId"
-            :goods="goods"
-            :additional-lists="additionalListsForPopular"
+              v-for="goods in popularGoods"
+              :key="goods.goodsId"
+              :goods="goods"
+              :additional-lists="additionalListsForPopular"
           />
         </div>
         <div v-else class="empty-state">
@@ -93,6 +96,7 @@ const categories = computed(() => goodsStore.categories)
 
 const recommendedGoods = ref([])
 const popularGoods = ref([])
+const isLoadingRecommended = ref(false)
 
 // additionalLists를 computed로 생성하여 Vue 반응성 보장
 const additionalListsForPopular = computed(() => [popularGoods])
@@ -103,28 +107,35 @@ let restartTimer = null
 
 async function fetchRecommendedGoods() {
   if (!isAuthenticated.value) return
-  
+
+  isLoadingRecommended.value = true
   try {
-    const response = await api.get('/goods/recommended')
-    recommendedGoods.value = Array.isArray(response.data) ? response.data : []
+    const response = await api.get('/recommend/goods')
+    const payload = response.data?.data || response.data || {}
+    const items = payload.items || (Array.isArray(payload) ? payload : [])
+    // 백엔드 굿즈 데이터를 카드에서 바로 쓸 수 있는 형태로 변환
+    const transformed = items.map(item => goodsStore.transformGoodsItem(item))
+    recommendedGoods.value = transformed
   } catch (error) {
     console.error('추천 굿즈 로딩 실패:', error)
     recommendedGoods.value = []
+  } finally {
+    isLoadingRecommended.value = false
   }
 }
 
 async function fetchPopularGoods() {
   try {
     const response = await api.get('/goods/hot-goods')
-    
+
     // 백엔드 응답 구조 확인 (response.data.data.items 또는 response.data.items 또는 response.data)
     const responseData = response.data?.data || response.data
     const items = responseData?.items || (Array.isArray(responseData) ? responseData : [])
-    
+
     // 백엔드 데이터를 프론트엔드 형식으로 변환 (transformGoodsItem 사용)
     // transformGoodsItem은 ...item으로 모든 속성(checkWish 포함)을 그대로 전달
     const transformedItems = items.map(item => goodsStore.transformGoodsItem(item))
-    
+
     // 페이징 처리 없이 최대 6개만 표시
     popularGoods.value = transformedItems.slice(0, 6)
   } catch (error) {
@@ -210,19 +221,19 @@ onUnmounted(() => {
 })
 
 watch(
-  () => ({
-    length: recommendedGoods.value.length,
-    auth: isAuthenticated.value
-  }),
-  () => {
-    nextTick(() => {
-      if (isAuthenticated.value && recommendedGoods.value.length > 0) {
-        startCarousel()
-      } else {
-        stopCarousel()
-      }
-    })
-  }
+    () => ({
+      length: recommendedGoods.value.length,
+      auth: isAuthenticated.value
+    }),
+    () => {
+      nextTick(() => {
+        if (isAuthenticated.value && recommendedGoods.value.length > 0) {
+          startCarousel()
+        } else {
+          stopCarousel()
+        }
+      })
+    }
 )
 </script>
 
@@ -422,6 +433,24 @@ watch(
   font-size: 16px;
 }
 
+.loading-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--primary-red);
+  font-size: 18px;
+  font-weight: 700;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
 @media (max-width: 1200px) {
   .category-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -432,12 +461,12 @@ watch(
   .section-title {
     font-size: 24px;
   }
-  
+
   .category-grid {
     grid-template-columns: repeat(2, 1fr);
     gap: 16px;
   }
-  
+
   .goods-grid {
     grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
     gap: 16px;
@@ -452,4 +481,3 @@ watch(
   }
 }
 </style>
-
