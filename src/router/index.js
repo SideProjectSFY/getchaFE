@@ -44,6 +44,7 @@ const routes = [
     children: [
       {
         path: '',
+        name: 'MyPageIndex',
         redirect: '/mypage/wishlist'
       },
       {
@@ -95,9 +96,19 @@ const router = createRouter({
   }
 })
 
-router.beforeEach((to, from, next) => {
+let authChecked = false
+
+router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore()
-  
+  // Pinia에서 로그인 정보 없을때 localStoreage에서 토큰 값 가져오기
+  const hasToken = !!(authStore.token || localStorage.getItem('token'))
+
+  // 새로고침 후 토큰만 남아 있고 user가 비어 있을 때 복구
+  if (!authChecked && hasToken && !authStore.user) {
+    authChecked = true
+    await authStore.checkAuth()
+  }
+
   if (to.meta.requiresAuth && !authStore.isAuthenticated) {
     next({ name: 'Login', query: { redirect: to.fullPath } })
   } else if (to.meta.requiresGuest && authStore.isAuthenticated) {
