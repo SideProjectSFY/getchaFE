@@ -1,6 +1,6 @@
 <template>
   <div class="wallet-page">
-    <h1 class="page-title">자산 현황</h1>
+    <h1 class="page-title title-heading">자산 현황</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
     <div v-else-if="errorMessage" class="error-state">

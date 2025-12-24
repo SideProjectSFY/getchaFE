@@ -1,6 +1,6 @@
 <template>
   <div class="favorite-animes-page">
-    <h1 class="page-title">관심 애니메이션</h1>
+    <h1 class="page-title title-heading">관심 애니메이션</h1>
     
     <div v-if="loading" class="loading">로딩 중...</div>
     <!-- favoriteAnimes 배열에 1개 이상 있을 때의 애니 목록 -->
@@ -29,7 +29,7 @@
 
     <!-- 추천 애니메이션 섹션 -->
     <div v-if="!loading" class="recommended-section">
-      <h2 class="section-title">추천 애니메이션</h2>
+      <h2 class="section-title title-heading">추천 애니메이션</h2>
       <div v-if="isLoadingRecommended" class="recommend-loading-state">
         <p>추천 시스템 가동 중 ... 🤖</p>
       </div>

@@ -3,7 +3,7 @@
     <!-- AI 추천 섹션 -->
     <section class="recommendation-section">
       <div class="container">
-        <h2 class="section-title">당신을 위한 추천</h2>
+        <h2 class="section-title title-heading">당신을 위한 추천</h2>
         <div v-if="isAuthenticated">
           <div
               v-if="recommendedGoods.length > 0"
@@ -40,7 +40,7 @@
     <!-- 카테고리 섹션 -->
     <section class="category-section">
       <div class="container">
-        <h2 class="section-title">카테고리별 둘러보기</h2>
+        <h2 class="section-title title-heading">카테고리별 둘러보기</h2>
         <div class="category-grid">
           <router-link
               v-for="category in categories"
@@ -61,7 +61,7 @@
     <!-- 인기 굿즈 섹션 -->
     <section class="popular-section">
       <div class="container">
-        <h2 class="section-title">Hot</h2>
+        <h2 class="section-title title-heading">Hot</h2>
         <div v-if="popularGoods.length > 0" class="goods-grid">
           <GoodsCard
               v-for="goods in popularGoods"
