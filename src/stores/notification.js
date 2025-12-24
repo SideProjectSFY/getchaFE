@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { initSocket, disconnectSocket } from '../services/notificationStream'
+import { initNotificationPolling, stopNotificationPolling } from '../services/notificationStream'
 import { useAuthStore } from './auth'
 import api from '../services/api'
 
@@ -39,13 +39,34 @@ export const useNotificationStore = defineStore('notification', () => {
 
     try {
       const res = await api.get('/notification')
-      notifications.value = (res.data || []).map((notification, index) => ({
+      const payload = res.data?.data || res.data || []
+      notifications.value = (payload || []).map((notification, index) => ({
         id: notification.id ?? Date.now() + index,
-        ...notification
+        type: notification.type,
+        message: notification.message,
+        link: notification.link,
+        goodsId: notification.goodsId,
+        createdAt: notification.createdAt,
+        readAt: notification.readAt,
+        read: !!notification.readAt
       }))
     } catch (e) {
       notifications.value = []
     }
+  }
+
+  async function markAsReadServer(id) {
+    try {
+      await api.patch(`/notification/${id}`)
+      markAsRead(id)
+    } catch (_) {}
+  }
+
+  async function markAllAsReadServer() {
+    try {
+      await api.patch('/notification/read-all')
+      markAllAsRead()
+    } catch (_) {}
   }
 
   function initWebSocket() {
@@ -55,8 +76,9 @@ export const useNotificationStore = defineStore('notification', () => {
     }
 
     // 롱폴링 스트림: 새 알림 목록을 받으면 하나씩 스토어에 추가
-    initSocket(authStore.token, (incomingList) => {
-      incomingList.forEach((data, idx) => {
+    initNotificationPolling(authStore.token, (incomingList) => {
+      const list = Array.isArray(incomingList) ? incomingList : []
+      list.forEach((data, idx) => {
         addNotification({
           id: data.id ?? Date.now() + idx,
           type: data.type,
@@ -70,7 +92,7 @@ export const useNotificationStore = defineStore('notification', () => {
   }
 
   function disconnectWebSocket() {
-    disconnectSocket()
+    stopNotificationPolling()
   }
 
   return {
@@ -79,6 +101,8 @@ export const useNotificationStore = defineStore('notification', () => {
     addNotification,
     markAsRead,
     markAllAsRead,
+    markAsReadServer,
+    markAllAsReadServer,
     fetchNotifications,
     initWebSocket,
     disconnectWebSocket
