@@ -6,7 +6,7 @@ export const categoryImages = {
   '키링': '/categoryImages/keyring.jpg',
   '인형': '/categoryImages/plush.jpg',
   '포스터': '/categoryImages/poster.jpg',
-  '뱃지류': '/categoryImages/other.jpg',
+  '뱃지류': '/categoryImages/badge.jpg',
   '기타': '/categoryImages/other.jpg'
 }
 
