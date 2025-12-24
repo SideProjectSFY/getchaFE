@@ -29,7 +29,7 @@
 
     <!-- 추천 애니메이션 섹션 -->
     <div v-if="!loading" class="recommended-section">
-      <h2 class="section-title">추천 애니메이션</h2>
+      <h2 class="section-title title-heading">추천 애니메이션</h2>
       <div v-if="isLoadingRecommended" class="recommend-loading-state">
         <p>추천 시스템 가동 중 ... 🤖</p>
       </div>
