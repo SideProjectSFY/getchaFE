@@ -267,6 +267,7 @@ watch(
   scroll-behavior: smooth;
   scroll-snap-type: x mandatory;
   padding-bottom: 12px;
+  align-items: stretch;
 }
 
 .carousel-track::-webkit-scrollbar {
@@ -275,7 +276,26 @@ watch(
 
 .carousel-card {
   flex: 0 0 320px;
+  max-width: 320px;
   scroll-snap-align: start;
+  display: flex;
+}
+
+.carousel-card :deep(.goods-card) {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-card :deep(.goods-info) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.carousel-card :deep(.goods-footer) {
+  margin-top: auto;
 }
 
 .carousel-btn {
